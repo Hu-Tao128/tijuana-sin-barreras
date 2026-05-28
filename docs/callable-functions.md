@@ -41,9 +41,8 @@ Crea un nuevo reporte de barrera de accesibilidad. Las fotos se suben primero a 
 
 **Flujo recomendado:**
 1. Subir foto a `Storage` → obtener `photoUrl`
-2. Llamar `classifyBarrierCallable(photoUrl)` → obtener `type`, `severity`, `description`
-3. Llamar `detectSpamCallable(photoUrl)` → verificar que no sea basura
-4. Llamar `createReport(...)` con los datos completos
+2. Llamar `createReport(...)` con los datos de ubicación y foto
+3. `createReport` ejecuta internamente anti-spam + clasificación Gemini Vision
 
 ```ts
 const createReport = httpsCallable(functions, "createReport");
@@ -95,6 +94,7 @@ const result = await createReport({
 **Errores:**
 - `unauthenticated` — usuario no autenticado
 - `invalid-argument` — datos inválidos (lat, lng, tipo)
+- `failed-precondition` — la imagen no parece mostrar una barrera válida
 - `resource-exhausted` — excedió límite de 10 reportes/día
 
 ---
@@ -309,7 +309,7 @@ const result = await httpsCallable(functions, "generateHeatmap")();
 
 ### `getDashboardStats`
 
-Obtiene estadísticas completas. **Requiere autenticación (cualquier rol).** Los usuarios se cuentan desde Firestore.
+Obtiene estadísticas completas. **Requiere rol `moderator` o `official`.** Los usuarios se cuentan desde Firestore.
 
 ```ts
 const result = await httpsCallable(functions, "getDashboardStats")();

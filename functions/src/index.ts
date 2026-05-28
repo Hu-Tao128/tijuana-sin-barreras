@@ -1,6 +1,11 @@
 import {setGlobalOptions} from "firebase-functions/v2";
+import {getApps, initializeApp} from "firebase-admin/app";
 
 setGlobalOptions({maxInstances: 10});
+
+if (!getApps().length) {
+  initializeApp();
+}
 
 export {createReport} from "./reports/createReport";
 export {confirmReport} from "./reports/confirmReport";

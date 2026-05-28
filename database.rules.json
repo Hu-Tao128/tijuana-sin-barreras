@@ -4,7 +4,7 @@
       ".read": "auth != null",
       ".write": "auth != null",
       "$reportId": {
-        ".write": "auth != null && (newData.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'moderator' || root.child('users').child(auth.uid).child('role').val() === 'official')",
+        ".write": "auth != null && (newData.child('userId').val() === auth.uid || auth.token.role === 'moderator' || auth.token.role === 'official')",
         ".validate": "newData.hasChildren(['id', 'userId', 'type', 'latitude', 'longitude', 'status', 'createdAt']) && newData.child('latitude').isNumber() && newData.child('longitude').isNumber() && newData.child('latitude').val() >= -90 && newData.child('latitude').val() <= 90 && newData.child('longitude').val() >= -180 && newData.child('longitude').val() <= 180"
       }
     },
@@ -13,8 +13,8 @@
       ".write": "auth != null"
     },
     "analytics": {
-      ".read": "auth != null",
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'moderator' || root.child('users').child(auth.uid).child('role').val() === 'official')"
+      ".read": "auth != null && (auth.token.role === 'moderator' || auth.token.role === 'official')",
+      ".write": false
     }
   }
 }

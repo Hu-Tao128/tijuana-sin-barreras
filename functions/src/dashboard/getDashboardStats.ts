@@ -23,7 +23,7 @@ export const getDashboardStats = onCall(
   {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
-    await requireRole(request, Role.CITIZEN);
+    await requireRole(request, Role.MODERATOR);
 
     const db = getDatabase();
     const firestore = getFirestore();
