@@ -1,0 +1,133 @@
+.app-shell {
+  --app-shell-sidebar-width: var(--sidebar-width);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell__sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: var(--app-shell-sidebar-width);
+  height: 100dvh;
+  padding: 1.5rem 1rem;
+  background: linear-gradient(
+    180deg,
+    var(--color-sidebar) 0%,
+    var(--Presidencia-700) 55%,
+    var(--color-sidebar-deep) 100%
+  );
+  color: var(--color-on-primary);
+  overflow: hidden;
+}
+
+.app-shell__brand {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.app-shell__brand-logo {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+}
+
+.app-shell__brand-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.app-shell__brand-subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.88;
+}
+
+.app-shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app-shell__nav-link {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  color: var(--color-on-primary);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.app-shell__nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-on-primary);
+}
+
+.app-shell__nav-link--active {
+  background: var(--Primarios-Guinda-500);
+  font-weight: 600;
+  color: var(--color-on-primary);
+}
+
+.app-shell__footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 1rem;
+}
+
+.app-shell__user {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.92;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell__sign-out {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.app-shell__sign-out:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-shell__content {
+  margin-left: var(--app-shell-sidebar-width);
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg);
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    --app-shell-sidebar-width: 220px;
+  }
+}

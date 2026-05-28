@@ -1,0 +1,6 @@
+export { Home } from './Home'
+export { Login } from './Login'
+export { HeatMap } from './HeatMap'
+export { Reports } from './Reports'
+export { Analytics } from './Analytics'
+export { Users } from './Users'
