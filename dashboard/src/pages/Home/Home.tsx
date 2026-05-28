@@ -1,10 +1,12 @@
-import { DashboardLayout } from '../../components'
 import { StatsOverviewChart } from '../../charts'
+import { PageHeader } from '../../components/layout/PageHeader'
 import { TijuanaMap } from '../../maps'
+import '../../App.css'
 
 export function Home() {
   return (
-    <DashboardLayout title="Panel gubernamental">
+    <div className="page-main">
+      <PageHeader title="Inicio" />
       <section className="dashboard-grid">
         <article className="dashboard-card dashboard-card--wide">
           <h2>Mapa de incidencias</h2>
@@ -15,6 +17,6 @@ export function Home() {
           <StatsOverviewChart />
         </article>
       </section>
-    </DashboardLayout>
+    </div>
   )
 }

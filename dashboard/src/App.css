@@ -8,7 +8,7 @@
   padding: 1.25rem;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--bg);
+  background: #fff;
   box-shadow: var(--shadow);
 }
 

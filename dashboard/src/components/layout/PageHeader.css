@@ -1,0 +1,17 @@
+.page-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.page-main {
+  padding: 2rem 1.75rem 3rem;
+  max-width: 1200px;
+}

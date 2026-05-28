@@ -48,3 +48,10 @@ code {
   background: var(--code-bg);
   color: var(--text-h);
 }
+
+.auth-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  color: var(--text);
+}

@@ -1,10 +1,14 @@
-import { DashboardLayout } from '../../components'
+import { PageHeader } from '../../components/layout/PageHeader'
 import { TijuanaMap } from '../../maps'
+import '../../App.css'
 
 export function HeatMap() {
   return (
-    <DashboardLayout title="Mapa de calor">
-      <TijuanaMap />
-    </DashboardLayout>
+    <div className="page-main">
+      <PageHeader title="Mapa de calor" />
+      <article className="dashboard-card">
+        <TijuanaMap />
+      </article>
+    </div>
   )
 }

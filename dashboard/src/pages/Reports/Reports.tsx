@@ -1,9 +1,13 @@
-import { DashboardLayout } from '../../components'
+import { PageHeader } from '../../components/layout/PageHeader'
+import '../../App.css'
 
 export function Reports() {
   return (
-    <DashboardLayout title="Reportes">
-      <p>Listado y filtros de reportes (pendiente de integrar).</p>
-    </DashboardLayout>
+    <div className="page-main">
+      <PageHeader title="Reportes" />
+      <article className="dashboard-card">
+        <p>Listado y filtros de reportes (pendiente de integrar con Firebase).</p>
+      </article>
+    </div>
   )
 }
