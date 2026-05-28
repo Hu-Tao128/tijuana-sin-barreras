@@ -5,6 +5,9 @@ import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole, getUserRole} from "../middleware/roles";
 import {Role} from "../types/Role";
+import {MobilityProfile} from "../types/MobilityProfile";
+import {VisionProfile} from "../types/VisionProfile";
+import {Language} from "../types/Language";
 
 export const registerUserProfile = onCall(
   {maxInstances: 10},
@@ -19,11 +22,15 @@ export const registerUserProfile = onCall(
       photoURL,
       edad,
       role,
-      usaSillaDeRuedas,
-      usaBaston,
-      problemasVision,
-      necesitaPerroGuia,
-      necesitaGuia,
+      mobilityProfile,
+      maxWalkingMeters,
+      canClimbStairs,
+      maxStairSteps,
+      visionProfile,
+      transportModes,
+      needsLowNoise,
+      emergencyContact,
+      preferredLanguage,
     } = request.data as {
       uid: string;
       displayName: string;
@@ -32,11 +39,15 @@ export const registerUserProfile = onCall(
       photoURL?: string;
       edad?: number;
       role?: Role;
-      usaSillaDeRuedas?: boolean;
-      usaBaston?: boolean;
-      problemasVision?: boolean;
-      necesitaPerroGuia?: boolean;
-      necesitaGuia?: boolean;
+      mobilityProfile?: MobilityProfile;
+      maxWalkingMeters?: number;
+      canClimbStairs?: boolean;
+      maxStairSteps?: number;
+      visionProfile?: VisionProfile;
+      transportModes?: string[];
+      needsLowNoise?: boolean;
+      emergencyContact?: {name: string; phone: string};
+      preferredLanguage?: Language;
     };
 
     if (!uid || !displayName || !email) {
@@ -75,6 +86,11 @@ export const registerUserProfile = onCall(
 
     await admin.auth().setCustomUserClaims(uid, {role: targetRole});
 
+    const existingCounts = existingDoc.exists ? {
+      reportCount: existingDoc.data()?.reportCount ?? 0,
+      verifiedReportCount: existingDoc.data()?.verifiedReportCount ?? 0,
+    } : {reportCount: 0, verifiedReportCount: 0};
+
     await userRef.set({
       uid,
       displayName,
@@ -84,11 +100,17 @@ export const registerUserProfile = onCall(
       edad: edad ?? null,
       role: targetRole,
       isActive: true,
-      usaSillaDeRuedas: usaSillaDeRuedas ?? false,
-      usaBaston: usaBaston ?? false,
-      problemasVision: problemasVision ?? false,
-      necesitaPerroGuia: necesitaPerroGuia ?? false,
-      necesitaGuia: necesitaGuia ?? false,
+      mobilityProfile: mobilityProfile ?? null,
+      maxWalkingMeters: maxWalkingMeters ?? null,
+      canClimbStairs: canClimbStairs ?? null,
+      maxStairSteps: maxStairSteps ?? null,
+      visionProfile: visionProfile ?? null,
+      transportModes: transportModes ?? [],
+      needsLowNoise: needsLowNoise ?? false,
+      emergencyContact: emergencyContact ?? null,
+      preferredLanguage: preferredLanguage ?? Language.ES,
+      reportCount: existingCounts.reportCount,
+      verifiedReportCount: existingCounts.verifiedReportCount,
       createdAt: existingDoc.exists ?
         (existingDoc.data() ?? {}).createdAt :
         Timestamp.fromMillis(now),
@@ -99,12 +121,7 @@ export const registerUserProfile = onCall(
 
     return {
       success: true,
-      user: {
-        uid,
-        displayName,
-        email,
-        role: targetRole,
-      },
+      user: {uid, displayName, email, role: targetRole},
     };
   }
 );

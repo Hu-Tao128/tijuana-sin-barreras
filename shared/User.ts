@@ -1,4 +1,12 @@
 import {Role} from "./Role";
+import {MobilityProfile} from "./MobilityProfile";
+import {VisionProfile} from "./VisionProfile";
+import {Language} from "./Language";
+
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+}
 
 export interface User {
   uid: string;
@@ -17,15 +25,27 @@ export interface User {
 
   isActive: boolean;
 
-  usaSillaDeRuedas?: boolean;
+  mobilityProfile?: MobilityProfile;
 
-  usaBaston?: boolean;
+  maxWalkingMeters?: number;
 
-  problemasVision?: boolean;
+  canClimbStairs?: boolean;
 
-  necesitaPerroGuia?: boolean;
+  maxStairSteps?: number;
 
-  necesitaGuia?: boolean;
+  visionProfile?: VisionProfile;
+
+  transportModes?: string[];
+
+  needsLowNoise?: boolean;
+
+  emergencyContact?: EmergencyContact;
+
+  preferredLanguage?: Language;
+
+  reportCount: number;
+
+  verifiedReportCount: number;
 
   createdAt: number;
 

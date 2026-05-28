@@ -1,5 +1,6 @@
-import { BarrierType } from "./BarrierType";
-import { ReportStatus } from "./ReportStatus";
+import {BarrierType} from "./BarrierType";
+import {ReportStatus} from "./ReportStatus";
+import {MobilityProfile} from "./MobilityProfile";
 
 export interface Report {
   id: string;
@@ -17,6 +18,8 @@ export interface Report {
   latitude: number;
 
   longitude: number;
+
+  reporterMobilityProfile?: MobilityProfile;
 
   verified: boolean;
 
