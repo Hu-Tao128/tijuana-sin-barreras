@@ -2,9 +2,6 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {GoogleGenAI} from "@google/genai";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
-import {BarrierType} from "../types/BarrierType";
-
-const VALID_TYPES = Object.values(BarrierType);
 
 async function fetchImageAsBase64(url: string): Promise<{base64: string; mimeType: string}> {
   const response = await fetch(url);
@@ -23,15 +20,12 @@ async function fetchImageAsBase64(url: string): Promise<{base64: string; mimeTyp
   return {base64, mimeType: contentType};
 }
 
-interface ClassificationResult {
-  type: BarrierType;
-  severity: number;
-  confidence: number;
-  description: string;
+interface SpamResult {
   isBarrier: boolean;
+  reason: string;
 }
 
-export async function classifyBarrier(photoUrl: string): Promise<ClassificationResult> {
+export async function detectSpam(photoUrl: string): Promise<SpamResult> {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -42,32 +36,22 @@ export async function classifyBarrier(photoUrl: string): Promise<ClassificationR
 
   const genAI = new GoogleGenAI({apiKey});
 
-  const prompt = `Eres un inspector de accesibilidad urbana en Tijuana, México.
+  const prompt = `Eres un filtro anti-spam para una app de reportes de
+barreras de accesibilidad urbana en Tijuana.
 
-Analiza esta foto y determina:
+Analiza esta imagen y determina si muestra una barrera de accesibilidad REAL
+o es contenido no válido (spam, selfie, meme, paisaje, animal, comida, etc.).
 
-1. ¿Muestra una barrera de accesibilidad urbana? (banqueta rota, rampa bloqueada, obstáculo, etc.)
-2. Si SÍ es una barrera, clasifícala en uno de estos tipos:
-   ${VALID_TYPES.map((t) => `- ${t}`).join("\n")}
-3. Severidad del 1 al 10 (donde 10 es extremadamente grave e impide el paso).
-4. Genera una descripción breve en español (máximo 200 caracteres) explicando qué se ve en la foto.
-
-Responde ÚNICAMENTE con un JSON válido en este formato exacto:
-{
-  "isBarrier": true,
-  "type": "broken_sidewalk",
-  "severity": 8,
-  "confidence": 0.95,
-  "description": "Banqueta con grietas profundas que dificultan el paso de silla de ruedas."
-}
-
-Si NO es una barrera, usa:
+Responde ÚNICAMENTE con un JSON:
 {
   "isBarrier": false,
-  "type": "other",
-  "severity": 1,
-  "confidence": 1.0,
-  "description": "La imagen no muestra una barrera de accesibilidad."
+  "reason": "La imagen es un paisaje sin ninguna barrera de accesibilidad visible."
+}
+
+O si SÍ es una barrera:
+{
+  "isBarrier": true,
+  "reason": "Se observa una rampa bloqueada por escombros de construcción."
 }`;
 
   const result = await genAI.models.generateContent({
@@ -96,7 +80,7 @@ Si NO es una barrera, usa:
     );
   }
 
-  let parsed: ClassificationResult;
+  let parsed: SpamResult;
 
   try {
     parsed = JSON.parse(jsonMatch[0]);
@@ -109,35 +93,20 @@ Si NO es una barrera, usa:
 
   if (
     typeof parsed.isBarrier !== "boolean" ||
-    typeof parsed.type !== "string" ||
-    typeof parsed.severity !== "number" ||
-    typeof parsed.confidence !== "number" ||
-    typeof parsed.description !== "string"
+    typeof parsed.reason !== "string"
   ) {
     throw new HttpsError("internal", "Gemini devolvió datos inválidos.");
   }
 
-  if (
-    parsed.isBarrier &&
-    !VALID_TYPES.includes(parsed.type as BarrierType)
-  ) {
-    parsed.type = BarrierType.OTHER;
-  }
-
-  parsed.severity = Math.min(10, Math.max(1, Math.round(parsed.severity)));
-  parsed.confidence = Math.min(1, Math.max(0, parsed.confidence));
-
-  logger.info("Clasificación de barrera por visión", {
+  logger.info("Detección de spam", {
     isBarrier: parsed.isBarrier,
-    type: parsed.type,
-    severity: parsed.severity,
-    confidence: parsed.confidence,
+    reason: parsed.reason.substring(0, 100),
   });
 
   return parsed;
 }
 
-export const classifyBarrierCallable = onCall(
+export const detectSpamCallable = onCall(
   {maxInstances: 5, timeoutSeconds: 60},
   async (request) => {
     await verifyUser(request);
@@ -151,6 +120,6 @@ export const classifyBarrierCallable = onCall(
       );
     }
 
-    return classifyBarrier(photoUrl);
+    return detectSpam(photoUrl);
   }
 );

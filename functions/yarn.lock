@@ -161,10 +161,10 @@
     teeny-request "^9.0.0"
     uuid "^8.0.0"
 
-"@google/genai@^2.6.0":
-  version "2.6.0"
-  resolved "https://registry.yarnpkg.com/@google/genai/-/genai-2.6.0.tgz#a8d3fc3c1f40e4d0b4e8d400734289e2701c03bd"
-  integrity sha512-HjoW3mPuEn7pnuKABJl9VbDoWDSF4nbwYKYvYYor7YjPeDxrrBxHzu2d1Prcd+BAuC4w+85UP6y7ZdcrQAoO7g==
+"@google/genai@^2.7.0":
+  version "2.7.0"
+  resolved "https://registry.yarnpkg.com/@google/genai/-/genai-2.7.0.tgz#8259b66b83d3576cb1d604fa44a0a267558c3f84"
+  integrity sha512-tv0DRtcndt2oEhBYy+5mA0TaXH98+L1Gt0AP9unBfH7DP20KhB7+O3QqAN1Lz+laMARGTHS7BFQSNpLbl4gm1g==
   dependencies:
     google-auth-library "^10.3.0"
     p-retry "^4.6.2"
