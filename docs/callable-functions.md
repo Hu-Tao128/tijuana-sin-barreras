@@ -68,6 +68,7 @@ const result = await createReport({
 | `severity` | `number` | No | Severidad 1-10 (default: 5) |
 | `description` | `string` | No | Máx. 500 caracteres |
 | `photoUrl` | `string` | No | URL de la foto en Storage |
+| `reporterMobilityProfile` | `MobilityProfile` | No | Perfil de movilidad del reportero (da peso diferenciado al reporte) |
 
 **Respuesta:**
 ```json
@@ -359,10 +360,12 @@ Los usuarios se almacenan en **Firestore** (`users/{uid}`). Se sincronizan con F
 
 Registra un usuario en Firestore después de crearlo en Firebase Auth. Si se asigna rol distinto a `citizen`, requiere `moderator` o superior. Establece custom claims en Firebase Auth.
 
+El perfil de accesibilidad (`mobilityProfile`, `maxWalkingMeters`, `visionProfile`, etc.) es el corazón del ruteo personalizado: define qué tipo de ruta puede hacer el usuario.
+
 ```ts
 const registerUserProfile = httpsCallable(functions, "registerUserProfile");
 
-// Dashboard: crear moderador con datos de accesibilidad
+// Dashboard: crear moderador con perfil de accesibilidad
 await registerUserProfile({
   uid: "authUid123",
   displayName: "Ángel Alcántara",
@@ -370,11 +373,15 @@ await registerUserProfile({
   phoneNumber: "+526641234567",
   edad: 45,
   role: "moderator",
-  usaSillaDeRuedas: false,
-  usaBaston: false,
-  problemasVision: false,
-  necesitaPerroGuia: false,
-  necesitaGuia: false,
+  mobilityProfile: "ambulatory",
+  maxWalkingMeters: 500,
+  canClimbStairs: true,
+  maxStairSteps: 10,
+  visionProfile: "normal",
+  transportModes: ["walking", "public_transport"],
+  needsLowNoise: false,
+  emergencyContact: {name: "María Alcántara", phone: "+526641234567"},
+  preferredLanguage: "es",
 });
 ```
 
@@ -387,13 +394,17 @@ await registerUserProfile({
 | `email` | `string` | Sí | Correo electrónico |
 | `phoneNumber` | `string` | No | Teléfono |
 | `photoURL` | `string` | No | URL de foto de perfil |
-| `edad` | `number` | No | Edad (para identificar adulto mayor) |
+| `edad` | `number` | No | Edad |
 | `role` | `Role` | No | Rol (default: `citizen`) |
-| `usaSillaDeRuedas` | `boolean` | No | Usa silla de ruedas |
-| `usaBaston` | `boolean` | No | Usa bastón |
-| `problemasVision` | `boolean` | No | Discapacidad visual |
-| `necesitaPerroGuia` | `boolean` | No | Necesita perro guía |
-| `necesitaGuia` | `boolean` | No | Necesita persona que lo guíe |
+| `mobilityProfile` | `MobilityProfile` | No | Perfil de movilidad para ruteo |
+| `maxWalkingMeters` | `number` | No | Distancia máxima que puede caminar sin pausa |
+| `canClimbStairs` | `boolean` | No | Puede subir escalones |
+| `maxStairSteps` | `number` | No | Máximo de escalones (si `canClimbStairs`) |
+| `visionProfile` | `VisionProfile` | No | Perfil de visión para ruteo |
+| `transportModes` | `string[]` | No | Modos de transporte: `walking`, `wheelchair`, `adapted_taxi`, `public_transport` |
+| `needsLowNoise` | `boolean` | No | Evitar zonas ruidosas (construcción) |
+| `emergencyContact` | `{name, phone}` | No | Contacto de emergencia |
+| `preferredLanguage` | `Language` | No | Idioma para instrucciones de audio (default: `es`) |
 
 **Respuesta:**
 ```json
@@ -477,11 +488,17 @@ const result = await httpsCallable(functions, "getUsers")();
       "edad": 45,
       "role": "moderator",
       "isActive": true,
-      "usaSillaDeRuedas": false,
-      "usaBaston": false,
-      "problemasVision": false,
-      "necesitaPerroGuia": false,
-      "necesitaGuia": false,
+      "mobilityProfile": "ambulatory",
+      "maxWalkingMeters": 500,
+      "canClimbStairs": true,
+      "maxStairSteps": 10,
+      "visionProfile": "normal",
+      "transportModes": ["walking"],
+      "needsLowNoise": false,
+      "emergencyContact": {"name": "María", "phone": "+52..."},
+      "preferredLanguage": "es",
+      "reportCount": 12,
+      "verifiedReportCount": 9,
       "createdAt": 1740000000000,
       "lastLoginAt": 1740000000000
     }
@@ -508,11 +525,12 @@ await registerUserProfile({
   displayName,
   email,
   role: "moderator",
-  usaSillaDeRuedas: false,
-  usaBaston: false,
-  problemasVision: false,
-  necesitaPerroGuia: false,
-  necesitaGuia: false,
+  mobilityProfile: "ambulatory",
+  maxWalkingMeters: 500,
+  canClimbStairs: true,
+  visionProfile: "normal",
+  transportModes: ["walking"],
+  preferredLanguage: "es",
 });
 
 // 3. Refrescar token para que los custom claims surtan efecto
@@ -538,18 +556,20 @@ await registerUserProfile({
   role: "citizen",
 });
 
-// 3. Después el usuario puede completar datos de accesibilidad
-//    llamando a registerUserProfile de nuevo con los campos adicionales
+// 3. Después el usuario completa su perfil de accesibilidad
 await registerUserProfile({
   uid: user.uid,
   displayName: user.displayName ?? "Usuario",
   email: user.email ?? "",
   edad: 68,
-  usaSillaDeRuedas: true,
-  usaBaston: false,
-  problemasVision: false,
-  necesitaPerroGuia: false,
-  necesitaGuia: true,
+  mobilityProfile: "wheelchair_manual",
+  maxWalkingMeters: 150,
+  canClimbStairs: false,
+  visionProfile: "low_vision",
+  transportModes: ["wheelchair", "adapted_taxi"],
+  needsLowNoise: true,
+  emergencyContact: {name: "María Alcántara", phone: "+526641234567"},
+  preferredLanguage: "es",
 });
 ```
 
@@ -626,3 +646,52 @@ const photoUrl = await getDownloadURL(fileRef);
 | `citizen` | Reportar, confirmar, ver mapa, consultar rutas |
 | `moderator` | ^ + archivar reportes, gestionar usuarios, exportar CSV |
 | `official` | ^ + acceso completo al dashboard, eliminar usuarios |
+
+---
+
+## Perfil de movilidad (`MobilityProfile`)
+
+Define qué tipo de ruta puede hacer el usuario. Reemplaza los antiguos booleans `usaSillaDeRuedas`, `usaBaston`, `necesitaGuia`.
+
+| Valor | Descripción | Implicación en ruteo |
+|-------|-------------|---------------------|
+| `wheelchair_electric` | Silla de ruedas eléctrica | Requiere rampa con inclinación ≤ 8% |
+| `wheelchair_manual` | Silla de ruedas manual | Puede manejar más inclinación, pero menos distancia |
+| `walker` | Usa andadera | Requiere superficie plana, no escalones |
+| `cane` | Usa bastón | Puede subir escalones con apoyo |
+| `ambulatory_limited` | Movilidad reducida sin dispositivo | Distancias cortas, puede necesitar pausas |
+| `ambulatory` | Sin limitaciones de movilidad | Ruta estándar |
+
+---
+
+## Perfil de visión (`VisionProfile`)
+
+Reemplaza los antiguos `problemasVision`, `necesitaPerroGuia`.
+
+| Valor | Descripción | Implicación en ruteo |
+|-------|-------------|---------------------|
+| `normal` | Visión normal | Sin adaptaciones |
+| `low_vision` | Baja visión | Priorizar contraste alto, evitar cruces no señalizados |
+| `blind` | Ceguera total | Activar audio automático, priorizar guía táctil y braille QR |
+
+---
+
+## Idioma (`Language`)
+
+| Valor | Descripción |
+|-------|-------------|
+| `es` | Español |
+| `en` | Inglés |
+
+---
+
+## Modos de transporte (`transportModes`)
+
+Define qué puede usar el usuario para moverse. Acepta un array con uno o más valores.
+
+| Valor | Descripción |
+|-------|-------------|
+| `walking` | A pie |
+| `wheelchair` | Silla de ruedas (propia) |
+| `adapted_taxi` | Taxi adaptado |
+| `public_transport` | Transporte público |
