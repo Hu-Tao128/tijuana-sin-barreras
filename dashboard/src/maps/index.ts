@@ -1,0 +1,1 @@
+export { TijuanaMap } from './TijuanaMap'
