@@ -1,0 +1,96 @@
+:root {
+  /* Paleta — Gobierno de México / Presidencia */
+  --Neutro-Neutro-100: #fff;
+  --Neutro-Neutro-300: #f3f3f3;
+  --Neutro-Neutro-400: #ddd;
+  --Neutro-Neutro-600: #767676;
+  --Neutro-Neutro-700: #434343;
+  --Neutro-Neutro-800: #161a1d;
+  --Primarios-Guinda-500: #9b2247;
+  --Primarios-Guinda-600: #611232;
+  --Primarios-Guinda-700: #3a0b1e;
+  --Background-Background-primary-600: #611232;
+  --Text-Text-primary-enabled: #611232;
+  --Text-Text-primary-hover: #9b2247;
+  --Presidencia-900: #270714;
+  --Neutro-600: #767676;
+  --Presidencia-principal-600: #611232;
+  --Presidencia-700: #4e0e28;
+
+  /* Alias semánticos */
+  --color-bg: var(--Neutro-Neutro-300);
+  --color-surface: var(--Neutro-Neutro-100);
+  --color-border: var(--Neutro-Neutro-400);
+  --color-text: var(--Neutro-Neutro-600);
+  --color-text-strong: var(--Neutro-Neutro-700);
+  --color-text-heading: var(--Neutro-Neutro-800);
+  --color-primary: var(--Text-Text-primary-enabled);
+  --color-primary-hover: var(--Text-Text-primary-hover);
+  --color-sidebar: var(--Background-Background-primary-600);
+  --color-sidebar-deep: var(--Presidencia-900);
+  --color-on-primary: var(--Neutro-Neutro-100);
+
+  /* Compatibilidad con componentes existentes */
+  --text: var(--color-text);
+  --text-h: var(--color-text-heading);
+  --bg: var(--color-bg);
+  --border: var(--color-border);
+  --code-bg: var(--Neutro-Neutro-300);
+  --accent: var(--color-primary-hover);
+  --accent-bg: color-mix(in srgb, var(--Primarios-Guinda-500) 12%, transparent);
+  --accent-border: color-mix(in srgb, var(--Primarios-Guinda-500) 40%, transparent);
+  --shadow: 0 1px 4px rgba(22, 26, 29, 0.08);
+
+  --sidebar-width: 260px;
+
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
+}
+
+#root {
+  min-height: 100%;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-h);
+}
+
+code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.875em;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.auth-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  color: var(--text);
+  background: var(--bg);
+}
