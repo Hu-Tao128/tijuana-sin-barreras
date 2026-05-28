@@ -1,5 +1,5 @@
-import { HttpsError } from "firebase-functions/v2/https";
-import type { CallableRequest } from "firebase-functions/v2/https";
+import {HttpsError} from "firebase-functions/v2/https";
+import type {CallableRequest} from "firebase-functions/v2/https";
 
 export function verifyUser(request: CallableRequest): void {
   if (!request.auth) {

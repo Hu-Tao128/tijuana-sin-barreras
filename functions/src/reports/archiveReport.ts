@@ -1,19 +1,19 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getDatabase } from "firebase-admin/database";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
-import { Role } from "../types/Role";
-import { ReportStatus } from "../types/ReportStatus";
-import type { Report } from "../types/Report";
+import {verifyUser} from "../middleware/auth";
+import {requireRole} from "../middleware/roles";
+import {Role} from "../types/Role";
+import {ReportStatus} from "../types/ReportStatus";
+import type {Report} from "../types/Report";
 
 export const archiveReport = onCall(
-  { maxInstances: 10 },
+  {maxInstances: 10},
   async (request) => {
     await verifyUser(request);
     await requireRole(request, Role.MODERATOR);
 
-    const { reportId } = request.data as { reportId: string };
+    const {reportId} = request.data as { reportId: string };
 
     if (!reportId) {
       throw new HttpsError(
@@ -45,7 +45,7 @@ export const archiveReport = onCall(
 
     return {
       success: true,
-      report: { ...report, status: ReportStatus.ARCHIVED, updatedAt: now },
+      report: {...report, status: ReportStatus.ARCHIVED, updatedAt: now},
     };
   }
 );

@@ -1,5 +1,5 @@
-import { BarrierType } from "./BarrierType";
-import { ReportStatus } from "./ReportStatus";
+import {BarrierType} from "./BarrierType";
+import {ReportStatus} from "./ReportStatus";
 
 export interface Report {
   id: string;

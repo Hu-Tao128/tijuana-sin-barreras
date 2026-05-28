@@ -1,8 +1,8 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { GoogleGenAI } from "@google/genai";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {GoogleGenAI} from "@google/genai";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import { BarrierType } from "../types/BarrierType";
+import {verifyUser} from "../middleware/auth";
+import {BarrierType} from "../types/BarrierType";
 
 const VALID_BARRIER_TYPES = Object.values(BarrierType);
 
@@ -18,7 +18,7 @@ export async function classifyBarrier(text: string): Promise<ClassificationResul
     throw new HttpsError("internal", "GEMINI_API_KEY no configurada.");
   }
 
-  const genAI = new GoogleGenAI({ apiKey });
+  const genAI = new GoogleGenAI({apiKey});
 
   const prompt = `
 Eres un clasificador de barreras de accesibilidad urbana.
@@ -87,11 +87,11 @@ Descripción del usuario:
 }
 
 export const classifyBarrierCallable = onCall(
-  { maxInstances: 5 },
+  {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
 
-    const { description } = request.data as { description: string };
+    const {description} = request.data as { description: string };
 
     if (!description || typeof description !== "string") {
       throw new HttpsError(

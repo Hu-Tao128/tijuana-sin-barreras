@@ -1,11 +1,11 @@
-import { onCall } from "firebase-functions/v2/https";
-import { getDatabase } from "firebase-admin/database";
+import {onCall} from "firebase-functions/v2/https";
+import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
-import { Role } from "../types/Role";
-import { ReportStatus } from "../types/ReportStatus";
-import type { Report } from "../types/Report";
+import {verifyUser} from "../middleware/auth";
+import {requireRole} from "../middleware/roles";
+import {Role} from "../types/Role";
+import {ReportStatus} from "../types/ReportStatus";
+import type {Report} from "../types/Report";
 
 interface DashboardStats {
   totalReports: number;
@@ -19,7 +19,7 @@ interface DashboardStats {
 }
 
 export const getDashboardStats = onCall(
-  { maxInstances: 5 },
+  {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
     await requireRole(request, Role.CITIZEN);
@@ -44,18 +44,18 @@ export const getDashboardStats = onCall(
       reports.push(report);
 
       switch (report.status) {
-        case ReportStatus.PENDING:
-          pendingReports++;
-          break;
-        case ReportStatus.VERIFIED:
-          verifiedReports++;
-          break;
-        case ReportStatus.REJECTED:
-          rejectedReports++;
-          break;
-        case ReportStatus.ARCHIVED:
-          archivedReports++;
-          break;
+      case ReportStatus.PENDING:
+        pendingReports++;
+        break;
+      case ReportStatus.VERIFIED:
+        verifiedReports++;
+        break;
+      case ReportStatus.REJECTED:
+        rejectedReports++;
+        break;
+      case ReportStatus.ARCHIVED:
+        archivedReports++;
+        break;
       }
 
       reportsByType[report.type] = (reportsByType[report.type] || 0) + 1;
@@ -84,6 +84,6 @@ export const getDashboardStats = onCall(
 
     logger.info("Estadísticas del dashboard generadas");
 
-    return { stats };
+    return {stats};
   }
 );

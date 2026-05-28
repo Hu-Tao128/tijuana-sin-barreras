@@ -1,16 +1,16 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getDatabase } from "firebase-admin/database";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
-import { Role } from "../types/Role";
-import type { Report } from "../types/Report";
+import {verifyUser} from "../middleware/auth";
+import {requireRole} from "../middleware/roles";
+import {Role} from "../types/Role";
+import type {Report} from "../types/Report";
 
 function escapeCsvField(field: string | number | boolean | undefined | null): string {
   if (field === undefined || field === null) return "";
   const str = String(field);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replace(/"/g, '""')}"`;
+  if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
+    return `"${str.replace(/"/g, "\"\"")}"`;
   }
   return str;
 }
@@ -43,7 +43,7 @@ function buildCsv(reports: Report[]): string {
 }
 
 export const exportCsv = onCall(
-  { maxInstances: 5, timeoutSeconds: 120 },
+  {maxInstances: 5, timeoutSeconds: 120},
   async (request) => {
     await verifyUser(request);
     await requireRole(request, Role.MODERATOR);
@@ -68,6 +68,6 @@ export const exportCsv = onCall(
       csvSize: csv.length,
     });
 
-    return { csv, totalReports: reports.length };
+    return {csv, totalReports: reports.length};
   }
 );

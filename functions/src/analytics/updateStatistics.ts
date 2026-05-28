@@ -1,7 +1,7 @@
-import { onValueWritten } from "firebase-functions/v2/database";
-import { getDatabase, ServerValue } from "firebase-admin/database";
+import {onValueWritten} from "firebase-functions/v2/database";
+import {getDatabase, ServerValue} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { ReportStatus } from "../types/ReportStatus";
+import {ReportStatus} from "../types/ReportStatus";
 
 interface ReportData {
   status?: string;
@@ -15,17 +15,17 @@ export const updateStatistics = onValueWritten(
   },
   async (event) => {
     const db = getDatabase();
-    const { reportId } = event.params;
+    const {reportId} = event.params;
 
     const beforeSnapshot = event.data.before;
     const afterSnapshot = event.data.after;
 
-    const beforeData = beforeSnapshot.exists()
-      ? (beforeSnapshot.val() as ReportData)
-      : null;
-    const afterData = afterSnapshot.exists()
-      ? (afterSnapshot.val() as ReportData)
-      : null;
+    const beforeData = beforeSnapshot.exists() ?
+      (beforeSnapshot.val() as ReportData) :
+      null;
+    const afterData = afterSnapshot.exists() ?
+      (afterSnapshot.val() as ReportData) :
+      null;
 
     const analyticsRef = db.ref("analytics");
 
@@ -33,7 +33,7 @@ export const updateStatistics = onValueWritten(
       await analyticsRef.child("totalReports").set(
         ServerValue.increment(-1)
       );
-      logger.info("Reporte eliminado de estadísticas", { reportId });
+      logger.info("Reporte eliminado de estadísticas", {reportId});
       return;
     }
 
@@ -42,7 +42,7 @@ export const updateStatistics = onValueWritten(
       await analyticsRef.child("reportsByDay").child(today).set(
         ServerValue.increment(1)
       );
-      logger.info("Estadísticas actualizadas para nuevo reporte", { reportId });
+      logger.info("Estadísticas actualizadas para nuevo reporte", {reportId});
       return;
     }
 

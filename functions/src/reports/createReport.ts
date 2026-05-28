@@ -1,14 +1,14 @@
-import { onCall } from "firebase-functions/v2/https";
-import { getDatabase, ServerValue } from "firebase-admin/database";
+import {onCall} from "firebase-functions/v2/https";
+import {getDatabase, ServerValue} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { verifyUser, getUserId } from "../middleware/auth";
-import { checkRateLimit } from "../middleware/ratelimit";
-import { validateReport } from "../middleware/validation";
-import { ReportStatus } from "../types/ReportStatus";
-import type { Report } from "../types/Report";
+import {verifyUser, getUserId} from "../middleware/auth";
+import {checkRateLimit} from "../middleware/ratelimit";
+import {validateReport} from "../middleware/validation";
+import {ReportStatus} from "../types/ReportStatus";
+import type {Report} from "../types/Report";
 
 export const createReport = onCall(
-  { maxInstances: 10 },
+  {maxInstances: 10},
   async (request) => {
     await verifyUser(request);
     const userId = getUserId(request);
@@ -56,6 +56,6 @@ export const createReport = onCall(
       type: report.type,
     });
 
-    return { success: true, report };
+    return {success: true, report};
   }
 );

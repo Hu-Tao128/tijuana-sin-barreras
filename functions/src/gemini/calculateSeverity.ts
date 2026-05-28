@@ -1,7 +1,7 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { GoogleGenAI } from "@google/genai";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {GoogleGenAI} from "@google/genai";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
+import {verifyUser} from "../middleware/auth";
 
 export async function calculateSeverity(
   description: string,
@@ -13,7 +13,7 @@ export async function calculateSeverity(
     throw new HttpsError("internal", "GEMINI_API_KEY no configurada.");
   }
 
-  const genAI = new GoogleGenAI({ apiKey });
+  const genAI = new GoogleGenAI({apiKey});
 
   const prompt = `
 Eres un evaluador de severidad de barreras de accesibilidad urbana.
@@ -60,11 +60,11 @@ Responde ÚNICAMENTE con un número entero del 1 al 10.
 }
 
 export const calculateSeverityCallable = onCall(
-  { maxInstances: 5 },
+  {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
 
-    const { description, barrierType } = request.data as {
+    const {description, barrierType} = request.data as {
       description: string;
       barrierType: string;
     };
@@ -78,6 +78,6 @@ export const calculateSeverityCallable = onCall(
 
     const severity = await calculateSeverity(description, barrierType);
 
-    return { severity };
+    return {severity};
   }
 );

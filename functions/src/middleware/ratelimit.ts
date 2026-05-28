@@ -1,5 +1,5 @@
-import { getDatabase } from "firebase-admin/database";
-import { HttpsError } from "firebase-functions/v2/https";
+import {getDatabase} from "firebase-admin/database";
+import {HttpsError} from "firebase-functions/v2/https";
 
 const MAX_REPORTS_PER_DAY = 10;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;

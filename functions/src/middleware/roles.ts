@@ -1,6 +1,5 @@
-import { HttpsError } from "firebase-functions/v2/https";
-import { CallableRequest } from "firebase-functions/v2/https";
-import { Role } from "../types/Role";
+import {HttpsError, CallableRequest} from "firebase-functions/v2/https";
+import {Role} from "../types/Role";
 
 const ROLE_HIERARCHY: Record<Role, number> = {
   [Role.CITIZEN]: 1,

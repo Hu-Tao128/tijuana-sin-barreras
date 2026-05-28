@@ -1,16 +1,16 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getDatabase, ServerValue } from "firebase-admin/database";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getDatabase, ServerValue} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { verifyUser, getUserId } from "../middleware/auth";
-import type { Confirmation } from "../types/Confirmation";
+import {verifyUser, getUserId} from "../middleware/auth";
+import type {Confirmation} from "../types/Confirmation";
 
 export const rejectReport = onCall(
-  { maxInstances: 10 },
+  {maxInstances: 10},
   async (request) => {
     await verifyUser(request);
     const userId = getUserId(request);
 
-    const { reportId } = request.data as { reportId: string };
+    const {reportId} = request.data as { reportId: string };
 
     if (!reportId) {
       throw new HttpsError(
@@ -66,8 +66,8 @@ export const rejectReport = onCall(
 
     await reportRef.child("rejections").set(ServerValue.increment(1));
 
-    logger.info("Rechazo registrado", { reportId, userId });
+    logger.info("Rechazo registrado", {reportId, userId});
 
-    return { success: true, confirmation };
+    return {success: true, confirmation};
   }
 );

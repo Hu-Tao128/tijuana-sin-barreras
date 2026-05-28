@@ -1,8 +1,8 @@
-import { onCall } from "firebase-functions/v2/https";
-import { getDatabase } from "firebase-admin/database";
+import {onCall} from "firebase-functions/v2/https";
+import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import type { Report } from "../types/Report";
+import {verifyUser} from "../middleware/auth";
+import type {Report} from "../types/Report";
 
 interface ZoneCount {
   zone: string;
@@ -69,7 +69,7 @@ function getZoneName(latitude: number, longitude: number): string {
 }
 
 export const generateHeatmap = onCall(
-  { maxInstances: 5 },
+  {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
 
@@ -87,11 +87,11 @@ export const generateHeatmap = onCall(
     });
 
     const heatmap: ZoneCount[] = Object.entries(zoneCounts)
-      .map(([zone, count]) => ({ zone, count }))
+      .map(([zone, count]) => ({zone, count}))
       .sort((a, b) => b.count - a.count);
 
-    logger.info("Mapa de calor generado", { zones: heatmap.length });
+    logger.info("Mapa de calor generado", {zones: heatmap.length});
 
-    return { heatmap };
+    return {heatmap};
   }
 );
