@@ -1,23 +1,43 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getDatabase } from "firebase-admin/database";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore} from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import { requireRole, getUserRole } from "../middleware/roles";
-import { Role } from "../types/Role";
-import type { User } from "../types/User";
+import {verifyUser} from "../middleware/auth";
+import {requireRole, getUserRole} from "../middleware/roles";
+import {Role} from "../types/Role";
+import {Timestamp} from "firebase-admin/firestore";
 
 export const registerUserProfile = onCall(
-  { maxInstances: 10 },
+  {maxInstances: 10},
   async (request) => {
     await verifyUser(request);
 
-    const { uid, displayName, email, photoURL, role } = request.data as {
+    const {
+      uid,
+      displayName,
+      email,
+      phoneNumber,
+      photoURL,
+      edad,
+      role,
+      usaSillaDeRuedas,
+      usaBaston,
+      problemasVision,
+      necesitaPerroGuia,
+      necesitaGuia,
+    } = request.data as {
       uid: string;
       displayName: string;
       email: string;
+      phoneNumber?: string;
       photoURL?: string;
+      edad?: number;
       role?: Role;
+      usaSillaDeRuedas?: boolean;
+      usaBaston?: boolean;
+      problemasVision?: boolean;
+      necesitaPerroGuia?: boolean;
+      necesitaGuia?: boolean;
     };
 
     if (!uid || !displayName || !email) {
@@ -33,16 +53,16 @@ export const registerUserProfile = onCall(
       await requireRole(request, Role.MODERATOR);
     }
 
-    const db = getDatabase();
-    const userRef = db.ref(`users/${uid}`);
-    const existingSnapshot = await userRef.once("value");
+    const db = getFirestore();
+    const userRef = db.collection("users").doc(uid);
+    const existingDoc = await userRef.get();
 
     const now = Date.now();
 
-    if (existingSnapshot.exists()) {
-      const existingUser = existingSnapshot.val() as User;
+    if (existingDoc.exists) {
+      const existingData = existingDoc.data()!;
 
-      if (existingUser.role !== targetRole) {
+      if (existingData.role !== targetRole) {
         const callerRole = getUserRole(request);
 
         if (callerRole === Role.CITIZEN && targetRole !== Role.CITIZEN) {
@@ -54,25 +74,38 @@ export const registerUserProfile = onCall(
       }
     }
 
-    await admin.auth().setCustomUserClaims(uid, { role: targetRole });
+    await admin.auth().setCustomUserClaims(uid, {role: targetRole});
 
-    const user: User = {
+    await userRef.set({
       uid,
       displayName,
       email,
-      photoURL,
+      phoneNumber: phoneNumber ?? null,
+      photoURL: photoURL ?? null,
+      edad: edad ?? null,
       role: targetRole,
       isActive: true,
-      createdAt: existingSnapshot.exists()
-        ? (existingSnapshot.val() as User).createdAt
-        : now,
-      lastLoginAt: now,
+      usaSillaDeRuedas: usaSillaDeRuedas ?? false,
+      usaBaston: usaBaston ?? false,
+      problemasVision: problemasVision ?? false,
+      necesitaPerroGuia: necesitaPerroGuia ?? false,
+      necesitaGuia: necesitaGuia ?? false,
+      createdAt: existingDoc.exists
+        ? existingDoc.data()!.createdAt
+        : Timestamp.fromMillis(now),
+      lastLoginAt: Timestamp.fromMillis(now),
+    });
+
+    logger.info("Usuario registrado en Firestore", {uid, role: targetRole});
+
+    return {
+      success: true,
+      user: {
+        uid,
+        displayName,
+        email,
+        role: targetRole,
+      },
     };
-
-    await userRef.set(user);
-
-    logger.info("Usuario registrado", { uid, role: targetRole });
-
-    return { success: true, user };
   }
 );

@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /reports/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null &&
+        (request.auth.uid == userId ||
+         request.auth.token.role == 'moderator' ||
+         request.auth.token.role == 'official');
+    }
+  }
+}

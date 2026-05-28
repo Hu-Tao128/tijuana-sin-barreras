@@ -1,18 +1,19 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getDatabase } from "firebase-admin/database";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore} from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import { verifyUser } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
-import { Role } from "../types/Role";
+import {verifyUser} from "../middleware/auth";
+import {requireRole} from "../middleware/roles";
+import {Role} from "../types/Role";
+import {Timestamp} from "firebase-admin/firestore";
 
 export const setUserRole = onCall(
-  { maxInstances: 10 },
+  {maxInstances: 10},
   async (request) => {
     await verifyUser(request);
     await requireRole(request, Role.MODERATOR);
 
-    const { uid, role } = request.data as {
+    const {uid, role} = request.data as {
       uid: string;
       role: Role;
     };
@@ -27,27 +28,30 @@ export const setUserRole = onCall(
     if (!Object.values(Role).includes(role)) {
       throw new HttpsError(
         "invalid-argument",
-        `Rol inválido. Valores permitidos: ${Object.values(Role).join(", ")}.`
+        `Rol inválido. Valores: ${Object.values(Role).join(", ")}.`
       );
     }
 
-    const db = getDatabase();
-    const userRef = db.ref(`users/${uid}`);
-    const userSnapshot = await userRef.once("value");
+    const db = getFirestore();
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
 
-    if (!userSnapshot.exists()) {
-      throw new HttpsError("not-found", "El usuario no existe en la base de datos.");
+    if (!userDoc.exists) {
+      throw new HttpsError(
+        "not-found",
+        "El usuario no existe en Firestore."
+      );
     }
 
-    await admin.auth().setCustomUserClaims(uid, { role });
+    await admin.auth().setCustomUserClaims(uid, {role});
 
     await userRef.update({
       role,
-      updatedAt: Date.now(),
+      lastLoginAt: Timestamp.fromMillis(Date.now()),
     });
 
-    logger.info("Rol de usuario actualizado", { uid, newRole: role });
+    logger.info("Rol de usuario actualizado", {uid, newRole: role});
 
-    return { success: true, uid, role };
+    return {success: true, uid, role};
   }
 );

@@ -1,5 +1,6 @@
 import {onCall} from "firebase-functions/v2/https";
 import {getDatabase} from "firebase-admin/database";
+import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
@@ -25,11 +26,12 @@ export const getDashboardStats = onCall(
     await requireRole(request, Role.CITIZEN);
 
     const db = getDatabase();
+    const firestore = getFirestore();
 
     const [reportsSnapshot, usersSnapshot] =
       await Promise.all([
         db.ref("reports").once("value"),
-        db.ref("users").once("value"),
+        firestore.collection("users").count().get(),
       ]);
 
     const reports: Report[] = [];
@@ -61,10 +63,7 @@ export const getDashboardStats = onCall(
       reportsByType[report.type] = (reportsByType[report.type] || 0) + 1;
     });
 
-    let totalUsers = 0;
-    usersSnapshot.forEach(() => {
-      totalUsers++;
-    });
+    let totalUsers = usersSnapshot.data().count;
 
     const sortedReports = reports.sort(
       (a, b) => b.createdAt - a.createdAt
