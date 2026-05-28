@@ -349,6 +349,172 @@ const url = URL.createObjectURL(blob);
 
 ---
 
+## Gestión de Usuarios
+
+### `registerUserProfile`
+
+Registra un usuario en Realtime Database después de crearlo en Firebase Auth. Si se asigna un rol distinto a `citizen`, requiere rol `moderator` o superior. También establece los custom claims en Firebase Auth.
+
+```ts
+const registerUserProfile = httpsCallable(functions, "registerUserProfile");
+
+// Dashboard: crear moderador
+const result = await registerUserProfile({
+  uid: "authUid123",
+  displayName: "Ángel Alcántara",
+  email: "angel@example.com",
+  role: "moderator",
+});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `uid` | `string` | Sí | UID de Firebase Auth |
+| `displayName` | `string` | Sí | Nombre visible |
+| `email` | `string` | Sí | Correo electrónico |
+| `photoURL` | `string` | No | URL de foto de perfil |
+| `role` | `Role` | No | Rol (default: `citizen`) |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "user": {
+    "uid": "authUid123",
+    "displayName": "Ángel Alcántara",
+    "email": "angel@example.com",
+    "role": "moderator",
+    "isActive": true,
+    "createdAt": 1740000000000,
+    "lastLoginAt": 1740000000000
+  }
+}
+```
+
+**Errores:**
+- `permission-denied` — intentas asignar rol superior sin ser moderator/official
+- `invalid-argument` — faltan uid, displayName o email
+
+---
+
+### `setUserRole`
+
+Cambia el rol de un usuario existente. **Requiere rol `moderator` o superior.** Actualiza tanto los custom claims de Firebase Auth como el registro en Realtime Database.
+
+```ts
+const setUserRole = httpsCallable(functions, "setUserRole");
+
+const result = await setUserRole({
+  uid: "authUid123",
+  role: "official",
+});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `uid` | `string` | Sí | UID del usuario a modificar |
+| `role` | `Role` | Sí | Nuevo rol |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "uid": "authUid123",
+  "role": "official"
+}
+```
+
+---
+
+### `getCurrentUserProfile`
+
+Obtiene el perfil del usuario autenticado actual desde Firebase Auth.
+
+```ts
+const getCurrentUserProfile = httpsCallable(functions, "getCurrentUserProfile");
+
+const result = await getCurrentUserProfile();
+```
+
+**Sin parámetros.**
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "user": {
+    "uid": "authUid123",
+    "displayName": "Ángel Alcántara",
+    "email": "angel@example.com",
+    "photoURL": "https://...",
+    "role": "moderator"
+  }
+}
+```
+
+---
+
+### `getUsers`
+
+Lista todos los usuarios registrados en Realtime Database. **Requiere rol `moderator` o superior.**
+
+```ts
+const getUsers = httpsCallable(functions, "getUsers");
+
+const result = await getUsers();
+```
+
+**Sin parámetros.**
+
+**Respuesta:**
+```json
+{
+  "users": [
+    {
+      "uid": "authUid123",
+      "displayName": "Ángel Alcántara",
+      "email": "angel@example.com",
+      "role": "moderator",
+      "isActive": true,
+      "createdAt": 1740000000000,
+      "lastLoginAt": 1740000000000
+    }
+  ]
+}
+```
+
+---
+
+## Flujo de registro desde el Dashboard
+
+```ts
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
+// 1. Crear usuario en Firebase Auth
+const auth = getAuth();
+const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
+// 2. Registrar perfil con rol en Realtime Database + custom claims
+const functions = getFunctions();
+const registerUserProfile = httpsCallable(functions, "registerUserProfile");
+await registerUserProfile({
+  uid: user.uid,
+  displayName,
+  email,
+  role: "moderator",
+});
+
+// 3. Forzar refresh del token para que los custom claims surtan efecto
+await user.getIdToken(true);
+```
+
+---
+
 ## Errores comunes
 
 | Código | Significado |

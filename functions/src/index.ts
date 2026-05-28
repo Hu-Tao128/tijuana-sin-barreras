@@ -15,3 +15,8 @@ export {updateStatistics} from "./analytics/updateStatistics";
 
 export {getDashboardStats} from "./dashboard/getDashboardStats";
 export {exportCsv} from "./dashboard/exportCsv";
+
+export {registerUserProfile} from "./users/registerUserProfile";
+export {setUserRole} from "./users/setUserRole";
+export {getCurrentUserProfile} from "./users/getCurrentUserProfile";
+export {getUsers} from "./users/getUsers";
