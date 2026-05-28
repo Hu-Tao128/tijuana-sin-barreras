@@ -63,7 +63,7 @@ export const getDashboardStats = onCall(
       reportsByType[report.type] = (reportsByType[report.type] || 0) + 1;
     });
 
-    let totalUsers = usersSnapshot.data().count;
+    const totalUsers = usersSnapshot.data().count;
 
     const sortedReports = reports.sort(
       (a, b) => b.createdAt - a.createdAt

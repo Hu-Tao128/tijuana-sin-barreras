@@ -36,9 +36,11 @@ export async function detectSpam(photoUrl: string): Promise<SpamResult> {
 
   const genAI = new GoogleGenAI({apiKey});
 
-  const prompt = `Eres un filtro anti-spam para una app de reportes de barreras de accesibilidad urbana en Tijuana.
+  const prompt = `Eres un filtro anti-spam para una app de reportes de
+barreras de accesibilidad urbana en Tijuana.
 
-Analiza esta imagen y determina si muestra una barrera de accesibilidad REAL o es contenido no válido (spam, selfie, meme, paisaje sin barreras, animal, comida, etc.).
+Analiza esta imagen y determina si muestra una barrera de accesibilidad REAL
+o es contenido no válido (spam, selfie, meme, paisaje, animal, comida, etc.).
 
 Responde ÚNICAMENTE con un JSON:
 {

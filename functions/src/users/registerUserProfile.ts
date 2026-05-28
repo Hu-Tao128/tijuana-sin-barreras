@@ -1,11 +1,10 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole, getUserRole} from "../middleware/roles";
 import {Role} from "../types/Role";
-import {Timestamp} from "firebase-admin/firestore";
 
 export const registerUserProfile = onCall(
   {maxInstances: 10},
@@ -60,7 +59,7 @@ export const registerUserProfile = onCall(
     const now = Date.now();
 
     if (existingDoc.exists) {
-      const existingData = existingDoc.data()!;
+      const existingData = existingDoc.data() ?? {};
 
       if (existingData.role !== targetRole) {
         const callerRole = getUserRole(request);
@@ -90,9 +89,9 @@ export const registerUserProfile = onCall(
       problemasVision: problemasVision ?? false,
       necesitaPerroGuia: necesitaPerroGuia ?? false,
       necesitaGuia: necesitaGuia ?? false,
-      createdAt: existingDoc.exists
-        ? existingDoc.data()!.createdAt
-        : Timestamp.fromMillis(now),
+      createdAt: existingDoc.exists ?
+        (existingDoc.data() ?? {}).createdAt :
+        Timestamp.fromMillis(now),
       lastLoginAt: Timestamp.fromMillis(now),
     });
 

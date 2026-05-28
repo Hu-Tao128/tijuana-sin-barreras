@@ -1,11 +1,10 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
 import {Role} from "../types/Role";
-import {Timestamp} from "firebase-admin/firestore";
 
 export const setUserRole = onCall(
   {maxInstances: 10},

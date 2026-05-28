@@ -7,7 +7,11 @@ export const getCurrentUserProfile = onCall(
   async (request) => {
     await verifyUser(request);
 
-    const uid = request.auth!.uid;
+    if (!request.auth) {
+      return {success: false, error: "No autenticado"};
+    }
+
+    const uid = request.auth.uid;
 
     const authUser = await admin.auth().getUser(uid);
 
