@@ -24,7 +24,7 @@ export function StatsOverviewChart() {
           <XAxis dataKey="colonia" tick={{ fill: 'var(--text)' }} />
           <YAxis tick={{ fill: 'var(--text)' }} />
           <Tooltip />
-          <Bar dataKey="reportes" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="reportes" fill="#9B2247" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

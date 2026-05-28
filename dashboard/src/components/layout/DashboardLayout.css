@@ -8,7 +8,7 @@
 .dashboard-layout__header {
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid var(--Primarios-Guinda-600);
 }
 
 .dashboard-layout__eyebrow {
@@ -16,12 +16,13 @@
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--accent);
+  color: var(--Text-Text-primary-enabled);
 }
 
 .dashboard-layout__header h1 {
   margin: 0;
   font-size: 2rem;
+  color: var(--Text-Text-primary-enabled);
 }
 
 .dashboard-layout__main {

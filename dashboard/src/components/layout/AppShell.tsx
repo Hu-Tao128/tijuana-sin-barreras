@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { brandLogo } from '../../brand'
 import { useAuth } from '../../contexts/AuthContext'
 import './AppShell.css'
 
@@ -15,9 +16,13 @@ export function AppShell() {
     <div className="app-shell">
       <aside className="app-shell__sidebar" aria-label="Navegación principal">
         <div className="app-shell__brand">
-          <span className="app-shell__brand-mark" aria-hidden="true">
-            TSB
-          </span>
+          <img
+            className="app-shell__brand-logo"
+            src={brandLogo}
+            alt="Tijuana Sin Barreras"
+            width={48}
+            height={48}
+          />
           <div>
             <p className="app-shell__brand-title">Tijuana Sin Barreras</p>
             <p className="app-shell__brand-subtitle">Panel gubernamental</p>

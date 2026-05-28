@@ -3,20 +3,29 @@
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 45%, #e2e8f0 100%);
+  background: var(--Neutro-Neutro-300);
 }
 
 .login-card {
   width: min(420px, 100%);
   padding: 2rem;
-  border-radius: 16px;
+  border-radius: 4px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: var(--shadow);
 }
 
 .login-card__header {
   margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.login-card__logo {
+  display: block;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 1rem;
+  object-fit: contain;
 }
 
 .login-card__eyebrow {
@@ -24,43 +33,48 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--accent);
+  color: var(--Text-Text-primary-enabled);
   font-weight: 600;
 }
 
 .login-card__header h1 {
   margin: 0 0 0.5rem;
   font-size: 1.5rem;
+  color: var(--color-text-heading);
 }
 
 .login-card__subtitle {
   margin: 0;
   font-size: 0.95rem;
-  color: var(--text);
+  color: var(--color-text);
 }
 
 .login-card__error {
   margin: 0 0 1rem;
   padding: 0.75rem;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #fef2f2;
-  color: #b91c1c;
+  color: #9b2247;
   font-size: 0.9rem;
+  border-left: 4px solid var(--Primarios-Guinda-600);
 }
 
 .login-card__google {
   width: 100%;
   padding: 0.75rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text-heading);
   font: inherit;
   font-weight: 500;
   cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .login-card__google:hover:not(:disabled) {
-  background: #f8fafc;
+  border-color: var(--Primarios-Guinda-500);
+  color: var(--Text-Text-primary-hover);
 }
 
 .login-card__google:disabled {
@@ -73,7 +87,7 @@
   align-items: center;
   gap: 1rem;
   margin: 1.25rem 0;
-  color: var(--text);
+  color: var(--color-text);
   font-size: 0.85rem;
 }
 
@@ -97,35 +111,37 @@
   gap: 0.35rem;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-h);
+  color: var(--color-text-strong);
 }
 
 .login-card__form input {
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   font: inherit;
+  background: var(--color-surface);
 }
 
 .login-card__form input:focus {
   outline: 2px solid var(--accent-border);
-  border-color: var(--accent);
+  border-color: var(--Primarios-Guinda-500);
 }
 
 .login-card__submit {
   margin-top: 0.25rem;
   padding: 0.75rem 1rem;
   border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
+  border-radius: 4px;
+  background: var(--Background-Background-primary-600);
+  color: var(--color-on-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
 .login-card__submit:hover:not(:disabled) {
-  filter: brightness(1.05);
+  background: var(--Text-Text-primary-hover);
 }
 
 .login-card__submit:disabled {

@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { brandLogo } from '../../brand'
 import { useAuth } from '../../contexts/AuthContext'
 import './Login.css'
 
@@ -46,6 +47,13 @@ export function Login() {
     <div className="login-page">
       <div className="login-card">
         <header className="login-card__header">
+          <img
+            className="login-card__logo"
+            src={brandLogo}
+            alt="Tijuana Sin Barreras"
+            width={72}
+            height={72}
+          />
           <p className="login-card__eyebrow">Tijuana Sin Barreras</p>
           <h1>Acceso funcionarios</h1>
           <p className="login-card__subtitle">
