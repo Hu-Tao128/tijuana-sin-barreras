@@ -6,6 +6,8 @@ import {
   PermissionsAndroid,
   Platform,
   Text,
+  Alert,
+  Linking,
 } from 'react-native';
 
 import MapView, { Marker } from 'react-native-maps';
@@ -34,6 +36,7 @@ export default function MapScreen() {
 
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [locationEnabled, setLocationEnabled] = useState(true);
 
   // =========================
   // PERMISOS
@@ -47,6 +50,14 @@ export default function MapScreen() {
     try {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Permiso de Ubicación',
+          message:
+            'Esta aplicación necesita acceso a tu ubicación para mostrarte en el mapa.',
+          buttonNeutral: 'Preguntar Después',
+          buttonNegative: 'Cancelar',
+          buttonPositive: 'Aceptar',
+        },
       );
 
       return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -55,6 +66,45 @@ export default function MapScreen() {
       return false;
     }
   };
+
+  // =========================
+  // ALERTA DE UBICACIÓN DESACTIVADA
+  // =========================
+
+  const showLocationDisabledAlert = useCallback(() => {
+    Alert.alert(
+      'GPS Desactivado',
+      'Por favor, activa tu ubicación para poder usar el mapa correctamente.',
+      [
+        {
+          text: 'Cancelar',
+          onPress: () => {
+            console.log('Usuario canceló activar ubicación');
+            // Usa ubicación por defecto
+            setLocation({
+              latitude: 32.5149,
+              longitude: -117.0382,
+            });
+            setLoading(false);
+          },
+          style: 'cancel',
+        },
+        {
+          text: 'Abrir Configuración',
+          onPress: () => {
+            // Abre la configuración de ubicación del dispositivo
+            if (Platform.OS === 'android') {
+              Linking.openSettings();
+            } else {
+              Linking.openURL('App-Prefs:Privacy/LOCATION');
+            }
+          },
+          style: 'default',
+        },
+      ],
+      { cancelable: false },
+    );
+  }, []);
 
   // =========================
   // UBICACION
@@ -72,11 +122,12 @@ export default function MapScreen() {
         longitude: -117.0382,
       });
 
+      setLocationEnabled(false);
       setLoading(false);
       return;
     }
 
-   Geolocation .getCurrentPosition(
+    Geolocation.getCurrentPosition(
       position => {
         console.log('Ubicación obtenida');
 
@@ -85,29 +136,41 @@ export default function MapScreen() {
           longitude: position.coords.longitude,
         });
 
+        setLocationEnabled(true);
         setLoading(false);
       },
 
       error => {
         console.log('Location Error:', error);
 
-        // fallback Tijuana
-        setLocation({
-          latitude: 32.5149,
-          longitude: -117.0382,
-        });
-
-        setLoading(false);
+        // Verificar si el error es porque el GPS está desactivado
+        // En Android, código de error 2 = POSITION_UNAVAILABLE (GPS desactivado)
+        // En iOS, pueden haber diferentes códigos de error
+        if (error.code === 2 || error.message.includes('disabled')) {
+          console.log('GPS desactivado');
+          setLocationEnabled(false);
+          showLocationDisabledAlert();
+        } else {
+          // Otro tipo de error, usar ubicación por defecto
+          setLocation({
+            latitude: 32.5149,
+            longitude: -117.0382,
+          });
+          setLocationEnabled(false);
+          setLoading(false);
+        }
       },
 
       {
-        enableHighAccuracy: false,
+        enableHighAccuracy: true,
         timeout: 15000,
         maximumAge: 10000,
         forceLocationManager: true,
+        showLocationDialog: true, // Android mostrará el popup nativo de "Activar GPS"
+        forceRequestLocation: true,
       },
     );
-  }, []);
+  }, [showLocationDisabledAlert]);
 
   // =========================
   // FIREBASE
@@ -176,8 +239,8 @@ export default function MapScreen() {
     <View style={styles.container}>
       <MapView
         style={styles.map}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsUserLocation={locationEnabled}
+        showsMyLocationButton={locationEnabled}
         initialRegion={{
           latitude: location.latitude,
           longitude: location.longitude,
