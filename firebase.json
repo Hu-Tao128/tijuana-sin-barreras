@@ -13,6 +13,7 @@
         "*.local"
       ],
       "predeploy": [
+        "node \"$RESOURCE_DIR/scripts/sync-shared.js\"",
         "yarn --cwd \"$RESOURCE_DIR\" lint",
         "yarn --cwd \"$RESOURCE_DIR\" build"
       ]
