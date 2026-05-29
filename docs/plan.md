@@ -1,6 +1,14 @@
 
 TIJUANA SIN BARRERAS
 Arquitectura Serverless con Firebase
+
+Nota de vigencia
+Este archivo es un documento de planeación inicial y ya no refleja con precisión todo el estado implementado del backend.
+
+- La fuente operativa actual para endpoints y contratos es `docs/callable-functions.md`.
+- El backend ya incluye `generateAccessibleRoute`, `getReportsInArea`, `generateHeatmap` por coordenadas y `archiveReport` con motivo.
+- No tomes este archivo como inventario exacto de funciones exportadas ni como reflejo exacto de la estructura actual de `functions/` y `shared/`.
+
 Objetivo
 Permitir que ciudadanos reporten barreras urbanas y consulten rutas accesibles, mientras que instituciones públicas obtienen información en tiempo real para priorizar mejoras de infraestructura y accesibilidad.
 
@@ -582,6 +590,5 @@ yarn add -D typescript
 yarn add -D eslint
 
 yarn add -D prettier
-
 
 

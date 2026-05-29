@@ -2,6 +2,16 @@
 
 Todas las cloud functions se invocan como **Callable Functions** de Firebase v2 desde el cliente (mobile o dashboard).
 
+## Estado actual
+
+Esta guía describe el estado implementado hoy en `functions/` y los contratos compartidos de `shared/`.
+
+- `generateAccessibleRoute` ya existe y está exportada.
+- `getReportsInArea` ya existe y está exportada.
+- `archiveReport` ya soporta motivo de archivado y marca `resolvedAt` cuando el motivo es `fixed`.
+- `generateHeatmap` ya trabaja con coordenadas agrupadas, no con nombres de zona.
+- `updateStatistics` es un trigger interno de RTDB; no es callable desde cliente.
+
 ## Instalación del SDK
 
 ```bash
@@ -137,13 +147,13 @@ const result = await rejectReport({reportId: "-OABC123XYZ"});
 
 ### `archiveReport`
 
-Archiva un reporte. **Requiere rol `moderator` o superior.** Acepta una razón de archivado para distinguir entre reparado, duplicado o inválido.
+Archiva un reporte. **Requiere rol `moderator` o superior.** Acepta una razón de archivado para distinguir entre reparado, duplicado o inválido. Si el motivo es `fixed`, además guarda `resolvedAt`.
 
 ```ts
 const archiveReport = httpsCallable(functions, "archiveReport");
 const result = await archiveReport({
   reportId: "-OABC123XYZ",
-  archiveReason: "fixed",
+  reason: "fixed",
 });
 ```
 
@@ -152,7 +162,22 @@ const result = await archiveReport({
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `reportId` | `string` | Sí | ID del reporte a archivar |
-| `archiveReason` | `string` | No | Motivo: `fixed` (reparado), `duplicate` (duplicado), `invalid` (inválido), `other` (otro). Default: `other` |
+| `reason` | `ArchiveReason` | No | Motivo recomendado: `fixed`, `duplicate`, `invalid`, `other` |
+| `archiveReason` | `ArchiveReason` | No | Alias compatible del campo `reason` |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "report": {
+    "id": "-OABC123XYZ",
+    "status": "archived",
+    "archiveReason": "fixed",
+    "resolvedAt": 1740000000000,
+    "updatedAt": 1740000000000
+  }
+}
+```
 
 **Errores:** `permission-denied`
 
@@ -350,7 +375,7 @@ const result = await getReportsInArea({
 
 ### `generateAccessibleRoute`
 
-**Función principal del proyecto.** Toma origen y destino, obtiene el perfil de movilidad del usuario desde Firestore, consulta todas las barreras activas en RTDB, calcula la ruta peatonal vía OSRM y determina qué barreras afectan al usuario según su perfil de movilidad.
+**Función principal del proyecto.** Toma origen y destino, obtiene el perfil de movilidad del usuario desde Firestore, consulta barreras activas en RTDB, calcula una ruta peatonal vía OSRM y determina qué barreras afectan al usuario según su perfil de movilidad.
 
 El `accessibilityScore` es de 1 a 10: 10 significa ruta completamente libre de barreras, valores bajos indican muchas barreras críticas en el camino.
 
@@ -375,6 +400,12 @@ const result = await generateAccessibleRoute({
 | `destinationLat` | `number` | Sí | Latitud de destino |
 | `destinationLng` | `number` | Sí | Longitud de destino |
 | `mobilityProfileOverride` | `string` | No | Perfil de movilidad forzado (sin este, usa el del usuario autenticado) |
+
+**Notas de implementación:**
+
+- Requiere autenticación.
+- Si OSRM falla, la función hace fallback a una línea recta entre origen y destino.
+- Si el usuario tiene `maxWalkingMeters` en Firestore y la ruta lo excede, la respuesta marca `maxWalkingExceeded: true`.
 
 **Respuesta:**
 ```json
@@ -504,6 +535,8 @@ const result = await detectSpam({
 
 ### Flujo completo de reporte con IA
 
+`createReport` ya ejecuta internamente `detectSpam` + `classifyBarrier` cuando recibe `photoUrl`. Para cliente, el flujo recomendado es más corto:
+
 ```ts
 import {getStorage, ref, uploadBytes, getDownloadURL} from "firebase/storage";
 
@@ -513,29 +546,20 @@ const fileRef = ref(storage, `reports/${userId}/${Date.now()}.jpg`);
 await uploadBytes(fileRef, imageBlob);
 const photoUrl = await getDownloadURL(fileRef);
 
-// 2. Verificar que no sea spam
-const detectSpam = httpsCallable(functions, "detectSpamCallable");
-const spamResult = await detectSpam({photoUrl});
-
-if (!spamResult.data.isBarrier) {
-  throw new Error(`Reporte rechazado: ${spamResult.data.reason}`);
-}
-
-// 3. Clasificar con Gemini Vision
-const classifyBarrier = httpsCallable(functions, "classifyBarrierCallable");
-const classification = await classifyBarrier({photoUrl});
-
-// 4. Crear reporte con datos de IA
+// 2. Crear reporte
 const createReport = httpsCallable(functions, "createReport");
-await createReport({
-  type: classification.data.type,
-  severity: classification.data.severity,
-  description: classification.data.description,
+const result = await createReport({
+  type: "other",
   photoUrl,
   latitude,
   longitude,
 });
+
+// 3. El backend devuelve el reporte ya clasificado por IA
+console.log(result.data.report);
 ```
+
+`detectSpamCallable` y `classifyBarrierCallable` siguen existiendo para pruebas manuales, tooling interno o depuración, pero no son necesarios en el flujo normal de creación de reportes.
 
 ---
 
@@ -559,6 +583,14 @@ const result = await httpsCallable(functions, "generateHeatmap")();
   ]
 }
 ```
+
+### `updateStatistics`
+
+No es una callable function. Es un trigger interno sobre `reports/{reportId}` en Realtime Database que mantiene contadores como:
+
+- `analytics/totalReports`
+- `analytics/reportsByDay/{YYYY-MM-DD}`
+- `analytics/verifiedReports`
 
 ---
 
@@ -740,19 +772,26 @@ const result = await httpsCallable(functions, "getCurrentUserProfile")();
 }
 ```
 
-> Los campos `mobilityProfile`, `visionProfile`, `transportModes`, `emergencyContact`, `edad`, etc. provienen de Firestore. El trigger automático `onUserCreate` los inicializa como `null` o valores por defecto al momento del registro. El usuario debe actualizar su perfil posteriormente con `registerUserProfile`.
+> Los campos `mobilityProfile`, `visionProfile`, `transportModes`, `emergencyContact`, `edad`, etc. provienen de Firestore.
 
 ---
 
-### Registro automático al crear cuenta
+### Registro y sincronización después del sign-up
 
-El proyecto incluye un trigger de Firebase Auth (`onUserCreate`) que automáticamente crea un documento en Firestore `users/{uid}` y asigna el custom claim `role: "citizen"` para cada nuevo usuario registrado. No es necesario llamar `registerUserProfile` inmediatamente después del sign-up — el perfil básico ya existe en Firestore.
+Actualmente el backend **no incluye** un trigger `onUserCreate` exportado desde `functions/src/index.ts`. Después del sign-up, el cliente debe llamar `registerUserProfile` para crear o sincronizar `users/{uid}` en Firestore y fijar el rol inicial.
 
 ```ts
-// Mobile: después de sign-in con Google o email, el perfil ya existe en Firestore.
-// Solo necesitas completar el perfil de accesibilidad después:
+// Mobile: después de sign-in con Google o email, sincroniza el perfil básico:
 
 const registerUserProfile = httpsCallable(functions, "registerUserProfile");
+await registerUserProfile({
+  uid: user.uid,
+  displayName: user.displayName ?? "Usuario",
+  email: user.email ?? "",
+  role: "citizen",
+});
+
+// Después, actualiza el perfil de accesibilidad:
 await registerUserProfile({
   uid: user.uid,
   displayName: user.displayName ?? "Usuario",
@@ -914,6 +953,14 @@ const photoUrl = await getDownloadURL(fileRef);
 | `internal` | Error del servidor (posiblemente falta GEMINI_API_KEY) |
 
 ---
+
+## Contrato compartido
+
+El tipo `Report` compartido entre `mobile`, `dashboard` y `functions` incluye hoy estos campos adicionales relevantes para mapa y moderación:
+
+- `reporterMobilityProfile?: MobilityProfile`
+- `archiveReason?: "fixed" | "duplicate" | "invalid" | "other"`
+- `resolvedAt?: number`
 
 ## Tipos de barrera (`BarrierType`)
 
