@@ -170,18 +170,22 @@ export interface RouteWarning {
   lng: number;
 }
 
+export interface AccessibleRouteData {
+  polyline: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  warningsOnRoute: RouteWarning[];
+  barriersInCorridor: number;
+  barriersAvoided: number;
+  accessibilityScore: number;
+  maxWalkingExceeded: boolean;
+}
+
 export interface GenerateAccessibleRouteResult {
   success: boolean;
-  route: {
-    polyline: string;
-    distanceMeters: number;
-    durationSeconds: number;
-    warningsOnRoute: RouteWarning[];
-    barriersInCorridor: number;
-    barriersAvoided: number;
-    accessibilityScore: number;
-    maxWalkingExceeded: boolean;
-  };
+  route: AccessibleRouteData;
+  alternatives?: AccessibleRouteData[];
+  totalRoutes?: number;
 }
 
 export const generateAccessibleRoute = call<

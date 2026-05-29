@@ -29,9 +29,8 @@ import {
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Geolocation from 'react-native-geolocation-service';
-import database from '@react-native-firebase/database';
 import { searchPlaces, getPlaceDetails } from '../../services/google-places-api';
-import { generateAccessibleRoute, RouteWarning } from '../../services/callable-functions';
+import { generateAccessibleRoute, RouteWarning, AccessibleRouteData } from '../../services/callable-functions';
 import {
   calculateAccessibilityScore,
   getRiskColor,
@@ -53,27 +52,6 @@ interface Place {
   secondaryText?: string;
   latitude?: number;
   longitude?: number;
-}
-
-interface Report {
-  id: string;
-  latitude: number;
-  longitude: number;
-  type: string;
-  severity: number | string;
-  date: number;
-  description?: string;
-}
-
-interface AccessibleRoute {
-  polyline: string;
-  distanceMeters: number;
-  durationSeconds: number;
-  warningsOnRoute: RouteWarning[];
-  barriersInCorridor: number;
-  barriersAvoided: number;
-  accessibilityScore: number;
-  maxWalkingExceeded: boolean;
 }
 
 interface Coordinate {
@@ -398,8 +376,9 @@ export default function RouteScreen() {
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
-  const [reports, setReports] = useState<Report[]>([]);
-  const [accessibleRoute, setAccessibleRoute] = useState<AccessibleRoute | null>(null);
+  const [accessibleRoute, setAccessibleRoute] = useState<AccessibleRouteData | null>(null);
+  const [alternativeRoutes, setAlternativeRoutes] = useState<AccessibleRouteData[]>([]);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [aiReport, setAiReport] = useState<GeminiReport | null>(null);
@@ -409,9 +388,64 @@ export default function RouteScreen() {
   const mapRef = useRef<MapView | null>(null);
   const cancelRef = useRef(false);
 
-  // ... (location and reports useEffects remain similar)
+  const allRoutes: AccessibleRouteData[] = accessibleRoute
+    ? [accessibleRoute, ...alternativeRoutes]
+    : [];
+  const currentRoute: AccessibleRouteData | null = allRoutes[selectedRouteIndex] ?? null;
+  const hasAlternatives = allRoutes.length > 1;
+  const hasNearbyObstacles = currentRoute && currentRoute.warningsOnRoute.length > 0;
 
-  // Calcular ruta óptima cuando hay origen y destino
+  const decodePolyline = (encoded: string): Coordinate[] => {
+    if (!encoded) return [];
+    const decoded: Coordinate[] = [];
+    let index = 0, lat = 0, lng = 0;
+    
+    while (index < encoded.length) {
+      let result = 0, shift = 0, b;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      
+      const deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
+      lat += deltaLat;
+
+      result = 0;
+      shift = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      
+      const deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
+      lng += deltaLng;
+
+      decoded.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    }
+    return decoded;
+  };
+
+  const routePolyline = currentRoute ? decodePolyline(currentRoute.polyline) : [];
+
+  const selectRoute = useCallback((index: number) => {
+    setSelectedRouteIndex(index);
+    setAiReport(null);
+    const route = allRoutes[index];
+    if (route && route.polyline) {
+      const decodedCoords = decodePolyline(route.polyline);
+      if (decodedCoords.length >= 2) {
+        requestAnimationFrame(() => {
+          mapRef.current?.fitToCoordinates(decodedCoords, {
+            edgePadding: { top: 120, right: 48, bottom: 220, left: 48 },
+            animated: true,
+          });
+        });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRoutes]);
   const calculateOptimalRoute = useCallback(async () => {
     if (!origin || !destination) return;
 
@@ -429,6 +463,8 @@ export default function RouteScreen() {
       
       if (result.success && result.route) {
         setAccessibleRoute(result.route);
+        setAlternativeRoutes(result.alternatives ?? []);
+        setSelectedRouteIndex(0);
 
         const decodedCoords = decodePolyline(result.route.polyline);
         const coordinatesToFit = [
@@ -462,14 +498,14 @@ export default function RouteScreen() {
   }, [origin, destination]);
 
   const runAIAnalysis = useCallback(async () => {
-    if (!accessibleRoute) return;
+    if (!currentRoute) return;
 
     setAiLoading(true);
     setAiReport(null);
     try {
-      const routePoints = decodePolyline(accessibleRoute.polyline);
+      const routePoints = decodePolyline(currentRoute.polyline);
 
-      const obstacles = accessibleRoute.warningsOnRoute.map(w => ({
+      const obstacles = currentRoute.warningsOnRoute.map(w => ({
         reportId: w.reportId,
         latitude: w.lat,
         longitude: w.lng,
@@ -481,7 +517,7 @@ export default function RouteScreen() {
       const report = await analyzeRouteWithGemini(
         routePoints,
         obstacles,
-        accessibleRoute.distanceMeters,
+        currentRoute.distanceMeters,
       );
       setAiReport(report);
     } catch (error: any) {
@@ -489,42 +525,7 @@ export default function RouteScreen() {
       Alert.alert('Error IA', 'No se pudo completar el análisis con IA.');
     }
     setAiLoading(false);
-  }, [accessibleRoute]);
-
-  // Decodificar polyline de OSRM (Google Polyline format compatible)
-  const decodePolyline = (encoded: string): Coordinate[] => {
-    if (!encoded) return [];
-    const decoded: Coordinate[] = [];
-    let index = 0, lat = 0, lng = 0;
-    
-    while (index < encoded.length) {
-      let result = 0, shift = 0, b;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      
-      const deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
-      lat += deltaLat;
-
-      result = 0;
-      shift = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      
-      const deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
-      lng += deltaLng;
-
-      decoded.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
-    }
-    return decoded;
-  };
-
-  const routePolyline = accessibleRoute ? decodePolyline(accessibleRoute.polyline) : [];
+  }, [currentRoute]);
 
   const formatDistance = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)}m`;
@@ -551,6 +552,8 @@ export default function RouteScreen() {
     setSearchModalVisible(false);
     if (origin && destination) {
       setAccessibleRoute(null);
+      setAlternativeRoutes([]);
+      setSelectedRouteIndex(0);
       setAiReport(null);
       void calculateOptimalRoute();
     }
@@ -561,8 +564,6 @@ export default function RouteScreen() {
     setLoading(false);
     setSearchModalVisible(false);
   }, []);
-
-  const hasNearbyObstacles = accessibleRoute && accessibleRoute.warningsOnRoute.length > 0;
 
   return (
     <View style={styles.container}>
@@ -597,11 +598,11 @@ export default function RouteScreen() {
         {routePolyline.length > 0 && (
           <Polyline
             coordinates={routePolyline}
-            strokeColor={accessibleRoute ? getRiskColor(getRiskLevel(accessibleRoute.accessibilityScore)) : '#3b82f6'}
+            strokeColor={currentRoute ? getRiskColor(getRiskLevel(currentRoute.accessibilityScore)) : '#3b82f6'}
             strokeWidth={4}
           />
         )}
-        {accessibleRoute?.warningsOnRoute.map((obstacle: any) => (
+        {currentRoute?.warningsOnRoute.map((obstacle: RouteWarning) => (
           <Marker
             key={obstacle.reportId}
             coordinate={{ latitude: obstacle.lat, longitude: obstacle.lng }}
@@ -644,36 +645,83 @@ export default function RouteScreen() {
         </View>
         </Modal>
 
-        {accessibleRoute && (
+        {currentRoute && (
         <View style={styles.routeInfoPanel}>
           <ScrollView showsVerticalScrollIndicator={false}>
+            {hasAlternatives && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.routeSelector}
+                contentContainerStyle={styles.routeSelectorContent}
+              >
+                {allRoutes.map((route, idx) => {
+                  const isSelected = idx === selectedRouteIndex;
+                  const riskColor = getRiskColor(getRiskLevel(route.accessibilityScore));
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        styles.routeTab,
+                        isSelected && { backgroundColor: riskColor, borderColor: riskColor },
+                      ]}
+                      onPress={() => selectRoute(idx)}
+                    >
+                      <Text
+                        style={[
+                          styles.routeTabTitle,
+                          isSelected && styles.routeTabTitleSelected,
+                        ]}
+                      >
+                        Ruta {idx + 1}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.routeTabDetail,
+                          isSelected && styles.routeTabDetailSelected,
+                        ]}
+                      >
+                        {formatDistance(route.distanceMeters)} • {(route.accessibilityScore * 10).toFixed(0)}/100
+                      </Text>
+                      <View style={styles.routeTabBadge}>
+                        <Text style={[styles.routeTabBadgeScore, { color: riskColor }]}>
+                          {route.warningsOnRoute.length > 0
+                            ? `${route.warningsOnRoute.length} ⚠️`
+                            : '✅'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
             <View
               style={[
                 styles.accessibilityCard,
-                { borderLeftColor: getRiskColor(getRiskLevel(accessibleRoute.accessibilityScore)) },
+                { borderLeftColor: getRiskColor(getRiskLevel(currentRoute.accessibilityScore)) },
               ]}
             >
               <View style={styles.riskHeader}>
-                <Text style={[styles.riskLevel, { color: getRiskColor(getRiskLevel(accessibleRoute.accessibilityScore)) }]}>
-                  {getRiskLevelDescription(getRiskLevel(accessibleRoute.accessibilityScore))}
+                <Text style={[styles.riskLevel, { color: getRiskColor(getRiskLevel(currentRoute.accessibilityScore)) }]}>
+                  {getRiskLevelDescription(getRiskLevel(currentRoute.accessibilityScore))}
                 </Text>
                 <Text style={styles.riskScore}>
-                  Score de Accesibilidad: {accessibleRoute.accessibilityScore}/10
+                  Score de Accesibilidad: {currentRoute.accessibilityScore}/10
                 </Text>
               </View>
 
               <View style={styles.routeDetails}>
                 <View style={styles.detailItem}>
                   <Ionicons name="navigate" size={16} color="#666" />
-                  <Text style={styles.detailText}>{formatDistance(accessibleRoute.distanceMeters)}</Text>
+                  <Text style={styles.detailText}>{formatDistance(currentRoute.distanceMeters)}</Text>
                 </View>
                 <View style={styles.detailItem}>
                   <Ionicons name="time" size={16} color="#666" />
-                  <Text style={styles.detailText}>{formatDuration(accessibleRoute.durationSeconds)}</Text>
+                  <Text style={styles.detailText}>{formatDuration(currentRoute.durationSeconds)}</Text>
                 </View>
               </View>
 
-              {accessibleRoute.maxWalkingExceeded && (
+              {currentRoute.maxWalkingExceeded && (
                 <View style={styles.warningBanner}>
                   <Ionicons name="warning" size={16} color="#991b1b" />
                   <Text style={styles.warningText}>
@@ -684,14 +732,14 @@ export default function RouteScreen() {
 
               <View style={styles.recommendations}>
                 <Text style={styles.recommendationText}>
-                  Se encontraron {accessibleRoute.warningsOnRoute.length} barreras en la ruta.
+                  Se encontraron {currentRoute.warningsOnRoute.length} barreras en la ruta.
                 </Text>
                 <Text style={styles.recommendationText}>
-                  {accessibleRoute.barriersAvoided} barreras fueron evitadas en el corredor de búsqueda.
+                  {currentRoute.barriersAvoided} barreras fueron evitadas en el corredor de búsqueda.
                 </Text>
               </View>
 
-              {accessibleRoute.warningsOnRoute.length > 0 ? (
+              {currentRoute.warningsOnRoute.length > 0 ? (
                 !aiReport ? (
                   <TouchableOpacity
                     style={styles.aiButton}
@@ -746,12 +794,12 @@ export default function RouteScreen() {
               </View>
             )}
 
-            {accessibleRoute.warningsOnRoute.length > 0 && (
+            {currentRoute.warningsOnRoute.length > 0 && (
               <View style={styles.obstaclesSection}>
                 <Text style={styles.sectionTitle}>
-                  ⚠️ Barreras en el trayecto ({accessibleRoute.warningsOnRoute.length})
+                  ⚠️ Barreras en el trayecto ({currentRoute.warningsOnRoute.length})
                 </Text>
-                {accessibleRoute.warningsOnRoute.map((obstacle: any, idx: number) => (
+                {currentRoute.warningsOnRoute.map((obstacle: RouteWarning, idx: number) => (
                   <View key={idx} style={styles.obstacleItem}>
                     <View
                       style={[
@@ -930,6 +978,51 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   noDataText: { fontSize: 12, color: '#6b7280', flex: 1, lineHeight: 16 },
+  routeSelector: {
+    marginBottom: 12,
+    maxHeight: 88,
+  },
+  routeSelectorContent: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  routeTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    minWidth: 110,
+    alignItems: 'center',
+  },
+  routeTabTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 2,
+  },
+  routeTabTitleSelected: {
+    color: '#fff',
+  },
+  routeTabDetail: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  routeTabDetailSelected: {
+    color: 'rgba(255,255,255,0.8)',
+  },
+  routeTabBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  routeTabBadgeScore: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
   aiButton: {
     flexDirection: 'row',
     alignItems: 'center',

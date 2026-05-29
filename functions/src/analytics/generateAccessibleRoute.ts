@@ -133,9 +133,19 @@ export const generateAccessibleRoute = onCall(
     let durationSeconds = 0;
     let routeCoords: Array<{lat: number; lng: number}> = [];
 
+    let osrmRoutes: Array<{
+      geometry?: string;
+      distance?: number;
+      duration?: number;
+      legs?: Array<{steps?: Array<{
+        geometry?: string;
+        intersections?: Array<{location: [number, number]}>;
+      }>}>;
+    }> = [];
+
     try {
       const osrmRes = await fetch(
-        `${OSRM_FOOT_URL}/${osrmCoordStr}?geometries=polyline&overview=full&alternatives=false`
+        `${OSRM_FOOT_URL}/${osrmCoordStr}?geometries=polyline&overview=full&alternatives=true`
       );
 
       if (osrmRes.ok) {
@@ -151,14 +161,16 @@ export const generateAccessibleRoute = onCall(
           }>;
         };
 
-        if (osrmJson.routes?.[0]) {
-          const route = osrmJson.routes[0];
-          polyline = route.geometry ?? "";
-          distanceMeters = route.distance ?? 0;
-          durationSeconds = route.duration ?? 0;
+        osrmRoutes = osrmJson.routes ?? [];
+
+        if (osrmRoutes.length > 0) {
+          const best = osrmRoutes[0];
+          polyline = best.geometry ?? "";
+          distanceMeters = best.distance ?? 0;
+          durationSeconds = best.duration ?? 0;
 
           routeCoords = [{lat: originLat, lng: originLng}];
-          for (const leg of route.legs ?? []) {
+          for (const leg of best.legs ?? []) {
             for (const step of leg.steps ?? []) {
               for (const inter of step.intersections ?? []) {
                 routeCoords.push({lat: inter.location[1], lng: inter.location[0]});
@@ -239,64 +251,119 @@ export const generateAccessibleRoute = onCall(
 
     const nearbyBarriers: Report[] = [...nearbyBarriersMap.values()];
 
-    const warningsOnRoute: Report[] = [];
-    const barriersInCorridor: Report[] = [];
-    let totalPenalty = 0;
-    let barriersAvoided = 0;
+    function analyzeRouteForBarriers(
+      coords: Array<{lat: number; lng: number}>,
+      barriers: Report[],
+      origin: {lat: number; lng: number}
+    ) {
+      const warningsOnRoute: Report[] = [];
+      const barriersInCorridor: Report[] = [];
+      let totalPenalty = 0;
+      let barriersAvoided = 0;
 
-    for (const barrier of nearbyBarriers) {
-      let minDist = Infinity;
+      for (const barrier of barriers) {
+        let minDist = Infinity;
 
-      for (let i = 0; i < routeCoords.length - 1; i++) {
-        const a = routeCoords[i];
-        const b = routeCoords[i + 1];
-        const dist = pointToSegmentDistance(
-          barrier.longitude, barrier.latitude,
-          a.lng, a.lat, b.lng, b.lat
-        );
-        if (dist < minDist) minDist = dist;
+        for (let i = 0; i < coords.length - 1; i++) {
+          const a = coords[i];
+          const b = coords[i + 1];
+          const dist = pointToSegmentDistance(
+            barrier.longitude, barrier.latitude,
+            a.lng, a.lat, b.lng, b.lat
+          );
+          if (dist < minDist) minDist = dist;
+        }
+
+        if (
+          Math.abs(barrier.latitude - origin.lat) <= 0.01 ||
+          (minDist <= CORRIDOR_METERS)
+        ) {
+          warningsOnRoute.push(barrier);
+        } else {
+          barriersInCorridor.push(barrier);
+          barriersAvoided++;
+        }
+
+        if (minDist <= CORRIDOR_METERS) {
+          const penalty = AccessibilityPenalty[barrier.type] ?? 10;
+          totalPenalty += isBarrierCriticalForProfile(barrier.type, mobilityProfile) ?
+            penalty * 2 :
+            penalty;
+        }
       }
 
-      if (
-        Math.abs(barrier.latitude - originLat) <= 0.01 ||
-        (minDist <= CORRIDOR_METERS)
-      ) {
-        warningsOnRoute.push(barrier);
-      } else {
-        barriersInCorridor.push(barrier);
-        barriersAvoided++;
-      }
+      const baseScore = 10;
+      const normalizedPenalty = Math.min(totalPenalty / 10, 9);
+      const accessibilityScore = Math.round((baseScore - normalizedPenalty) * 10) / 10;
 
-      if (minDist <= CORRIDOR_METERS) {
-        const penalty = AccessibilityPenalty[barrier.type] ?? 10;
-        totalPenalty += isBarrierCriticalForProfile(barrier.type, mobilityProfile) ?
-          penalty * 2 :
-          penalty;
-      }
+      return {
+        warningsOnRoute,
+        barriersAvoided,
+        accessibilityScore,
+        barriersInCorridor: barriersInCorridor.length,
+      };
     }
 
-    const baseScore = 10;
-    const normalizedPenalty = Math.min(totalPenalty / 10, 9);
-    const accessibilityScore = Math.round((baseScore - normalizedPenalty) * 10) / 10;
+    const primary = analyzeRouteForBarriers(routeCoords, nearbyBarriers, {lat: originLat, lng: originLng});
 
     const reachedMaxDistance = maxWalkingMeters && distanceMeters > maxWalkingMeters;
 
-    logger.info("Ruta accesible generada", {
-      callerUid,
-      mobilityProfile,
-      distanceMeters,
-      warnings: warningsOnRoute.length,
-      avoided: barriersAvoided,
-      score: accessibilityScore,
-    });
+    const alternativeRoutes: Array<{
+      polyline: string;
+      distanceMeters: number;
+      durationSeconds: number;
+      warningsOnRoute: Array<{
+        reportId: string;
+        type: string;
+        severity: number;
+        description?: string;
+        lat: number;
+        lng: number;
+      }>;
+      barriersInCorridor: number;
+      barriersAvoided: number;
+      accessibilityScore: number;
+      maxWalkingExceeded: boolean;
+    }> = [];
 
-    return {
-      success: true,
-      route: {
-        polyline,
-        distanceMeters,
-        durationSeconds,
-        warningsOnRoute: warningsOnRoute.map((r) => ({
+    const mainRouteResult = {
+      polyline,
+      distanceMeters,
+      durationSeconds,
+      warningsOnRoute: primary.warningsOnRoute.map((r) => ({
+        reportId: r.id,
+        type: r.type,
+        severity: r.severity,
+        description: r.description,
+        lat: r.latitude,
+        lng: r.longitude,
+      })),
+      barriersInCorridor: primary.barriersInCorridor,
+      barriersAvoided: primary.barriersAvoided,
+      accessibilityScore: primary.accessibilityScore,
+      maxWalkingExceeded: reachedMaxDistance,
+    };
+
+    for (let altIdx = 1; altIdx < osrmRoutes.length; altIdx++) {
+      const altRoute = osrmRoutes[altIdx];
+      const altCoords: Array<{lat: number; lng: number}> = [{lat: originLat, lng: originLng}];
+
+      for (const leg of altRoute.legs ?? []) {
+        for (const step of leg.steps ?? []) {
+          for (const inter of step.intersections ?? []) {
+            altCoords.push({lat: inter.location[1], lng: inter.location[0]});
+          }
+        }
+      }
+      altCoords.push({lat: destinationLat, lng: destinationLng});
+
+      const altAnalysis = analyzeRouteForBarriers(altCoords, nearbyBarriers, {lat: originLat, lng: originLng});
+
+      alternativeRoutes.push({
+        polyline: altRoute.geometry ?? "",
+        distanceMeters: altRoute.distance ?? 0,
+        durationSeconds: altRoute.duration ?? 0,
+        warningsOnRoute: altAnalysis.warningsOnRoute.map((r) => ({
           reportId: r.id,
           type: r.type,
           severity: r.severity,
@@ -304,11 +371,29 @@ export const generateAccessibleRoute = onCall(
           lat: r.latitude,
           lng: r.longitude,
         })),
-        barriersInCorridor: barriersInCorridor.length,
-        barriersAvoided,
-        accessibilityScore,
-        maxWalkingExceeded: reachedMaxDistance,
-      },
+        barriersInCorridor: altAnalysis.barriersInCorridor,
+        barriersAvoided: altAnalysis.barriersAvoided,
+        accessibilityScore: altAnalysis.accessibilityScore,
+        maxWalkingExceeded: maxWalkingMeters ? (altRoute.distance ?? 0) > maxWalkingMeters : false,
+      });
+    }
+
+    const allRoutes = [mainRouteResult, ...alternativeRoutes].sort(
+      (a, b) => b.accessibilityScore - a.accessibilityScore
+    );
+
+    logger.info("Rutas accesibles generadas", {
+      callerUid,
+      mobilityProfile,
+      totalRoutes: allRoutes.length,
+      bestScore: allRoutes[0]?.accessibilityScore,
+    });
+
+    return {
+      success: true,
+      route: allRoutes[0],
+      alternatives: allRoutes.slice(1),
+      totalRoutes: allRoutes.length,
     };
   }
 );
