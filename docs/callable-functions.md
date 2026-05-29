@@ -15,6 +15,9 @@ Esta guía describe el estado implementado hoy en `functions/` y los contratos c
 - `updateStatistics` es un trigger interno de RTDB; no es callable desde cliente.
 - Las reglas de Firestore ahora son solo lectura desde cliente; toda escritura pasa por Cloud Functions (admin SDK).
 - Los reportes nuevos incluyen `geohash` generado a partir de lat/lng para indexación espacial.
+- `onUserCreate` es un **trigger v1 Auth** (`onAuthCreate.ts`) que siembra automáticamente perfil base en Firestore al crear usuario.
+- El paquete compartido `@tijuanasinbarreras/shared` se sincroniza en predeploy vía `scripts/sync-shared.js` y se resuelve con `file:./shared`.
+- Todas las funciones comparten tipos desde `@tijuanasinbarreras/shared` (no `../types/`).
 
 ## Instalación del SDK
 
@@ -811,6 +814,20 @@ const result = await httpsCallable(functions, "getCurrentUserProfile")();
 
 ---
 
+### `onUserCreate` (trigger interno Auth)
+
+Trigger automático que se ejecuta cuando un usuario se registra en Firebase Auth (Google, email, etc.). Siembra un perfil básico en Firestore `users/{uid}` con valores por defecto (`role: citizen`, `reportCount: 0`, idioma `es`, etc.). Si el documento ya existe, omite la creación para no sobrescribir datos.
+
+**Ubicación:** `functions/src/users/onAuthCreate.ts` (v1 Auth trigger, exportado desde `index.ts` como `onUserCreate`).
+
+No es una callable function — se ejecuta automáticamente al crear usuario en Auth.
+
+### `migrateUsersHttp`
+
+Endpoint HTTP que migra usuarios existentes de Firebase Auth hacia Firestore. Útil para la primera carga de datos o sincronización masiva.
+
+**Requiere rol `moderator`.** Invocar vía `GET` al endpoint de la función.
+
 ### Registro y sincronización después del sign-up
 
 El backend incluye un trigger `onUserCreate` que automáticamente siembra un perfil básico en Firestore cuando se crea un usuario en Firebase Auth. Para completar el perfil de accesibilidad, el cliente llama `registerUserProfile` después del sign-in.
@@ -1106,3 +1123,64 @@ Define qué puede usar el usuario para moverse. Acepta un array con uno o más v
 | `wheelchair` | Silla de ruedas (propia) |
 | `adapted_taxi` | Taxi adaptado |
 | `public_transport` | Transporte público |
+
+---
+
+## Desarrollo local
+
+### Paquete compartido `@tijuanasinbarreras/shared`
+
+El monorepo usa un paquete compartido para tipos y constantes entre `functions/`, `mobile/`, y `dashboard/`.
+
+**Estructura:**
+```
+shared/                    # Fuente del paquete (repo root)
+  *.ts                     # Tipos y constantes
+  dist/                    # JS compilado
+  package.json             # name: @tijuanasinbarreras/shared
+
+functions/
+  src/                     # Código fuente (importa desde @tijuanasinbarreras/shared)
+  shared/                  # Generado por sync-shared.js (gitignored)
+    dist/                  # Copia de shared/dist/
+    package.json           # Package ligero que apunta a dist/
+  scripts/
+    sync-shared.js         # Script que copia shared/dist → functions/shared/
+  package.json             # "@tijuanasinbarreras/shared": "file:./shared"
+```
+
+**Flujo de trabajo local:**
+
+```bash
+# 1. Compilar shared (desde repo root)
+cd shared && yarn install && yarn build
+
+# 2. Sincronizar shared en functions/
+cd ../functions && node scripts/sync-shared.js
+
+# 3. Instalar dependencias de functions
+yarn install
+
+# 4. Compilar y probar
+yarn build && yarn test
+```
+
+**Flujo de deploy (automático):**
+
+El `predeploy` en `firebase.json` ejecuta en orden:
+1. `node "$RESOURCE_DIR/scripts/sync-shared.js"` — copia `shared/dist/` → `functions/shared/dist/`
+2. `yarn --cwd "$RESOURCE_DIR" lint`
+3. `yarn --cwd "$RESOURCE_DIR" build`
+
+Cloud Build luego ejecuta `yarn install --frozen-lockfile` usando el `functions/shared/` ya sincronizado.
+
+### Pruebas
+
+```bash
+cd functions
+yarn test    # Compila TS → JS y ejecuta tests con node --test
+```
+
+Los tests usan el test runner nativo de Node.js. Hay dos archivos:
+- `tests/backend-smoke.test.cjs` — middleware, roles, validación, perfil, idempotencia (26 tests)
+- `tests/geohash.test.cjs` — encode, decode, bboxCoveringPrefixes (16 tests)
