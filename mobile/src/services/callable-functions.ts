@@ -152,3 +152,39 @@ export interface GetCurrentUserProfileResult {
 
 export const getCurrentUserProfile =
   call<void, GetCurrentUserProfileResult>('getCurrentUserProfile');
+
+export interface GenerateAccessibleRouteParams {
+  originLat: number;
+  originLng: number;
+  destinationLat: number;
+  destinationLng: number;
+  mobilityProfileOverride?: string;
+}
+
+export interface RouteWarning {
+  reportId: string;
+  type: string;
+  severity: number;
+  description?: string;
+  lat: number;
+  lng: number;
+}
+
+export interface GenerateAccessibleRouteResult {
+  success: boolean;
+  route: {
+    polyline: string;
+    distanceMeters: number;
+    durationSeconds: number;
+    warningsOnRoute: RouteWarning[];
+    barriersInCorridor: number;
+    barriersAvoided: number;
+    accessibilityScore: number;
+    maxWalkingExceeded: boolean;
+  };
+}
+
+export const generateAccessibleRoute = call<
+  GenerateAccessibleRouteParams,
+  GenerateAccessibleRouteResult
+>('generateAccessibleRoute');
