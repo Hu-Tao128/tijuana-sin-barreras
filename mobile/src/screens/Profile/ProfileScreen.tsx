@@ -11,11 +11,22 @@ import {
   StatusBar
 } from 'react-native';
 import Button from '../../components/Button';
+import auth from '@react-native-firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 export default function ProfileScreen() {
   // Estados para controlar las preferencias de accesibilidad (Checkboxes)
   const [useWheelchair, setUseWheelchair] = useState(true);
   const [visualImpairment, setVisualImpairment] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+        await GoogleSignin.signOut(); // Desconecta la sesión de Google
+        await auth().signOut();       // Desconecta Firebase
+    } catch {
+        Alert.alert('Error al cerrar sesión');
+    }
+  };
 
   const handleSaveChanges = () => {
     Alert.alert('Éxito', 'Cambios de perfil guardados correctamente.');
@@ -162,10 +173,26 @@ export default function ProfileScreen() {
           <TouchableOpacity 
             style={styles.logoutButton} 
             activeOpacity={0.6}
-            onPress={() => Alert.alert('Cerrar Sesión', '¿Estás seguro de que quieres salir?')}
-          >
+            onPress={() => 
+                Alert.alert(
+                'Cerrar Sesión', 
+                '¿Estás seguro de que quieres salir?',
+                [
+                    {
+                    text: 'Cancelar',
+                    style: 'cancel', // Le da un estilo sutil en iOS
+                    },
+                    {
+                    text: 'Salir',
+                    style: 'destructive', // Lo pinta de rojo en iOS para indicar acción irreversible
+                    onPress: handleLogout, // <-- Aquí llamamos a tu función de Firebase/Google
+                    },
+                ]
+                )
+            }
+            >
             <Text style={styles.logoutText}>Cerrar Sesión</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
         </View>
 
       </ScrollView>

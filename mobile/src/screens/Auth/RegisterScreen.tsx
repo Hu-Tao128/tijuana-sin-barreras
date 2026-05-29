@@ -13,17 +13,24 @@ import {
 // 1. Importamos tus componentes reutilizables rediseñados
 import Input from '../../components/Input';
 import Button from '../../components/Button';
+import auth from '@react-native-firebase/auth';
 
 export default function RegisterScreen({ navigation }: any) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false); // Estado para controlar el ActivityIndicator
+  
 
-  const handleRegister = () => {
-    if (!name || !email || !password) {
-      Alert.alert('Error', 'Por favor completa todos los campos.');
-      return;
+  const handleRegister = async() => {
+   if (!email || !password || !name) return Alert.alert('Por favor llena todos los campos');
+    try {
+        const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+        // Actualizar el perfil nativo de Firebase con el nombre del Ciudadano
+        await userCredential.user.updateProfile({ displayName: name });
+        Alert.alert('¡Usuario registrado con éxito!');
+    } catch (error: any) {
+        Alert.alert(`Error en registro: ${error.message}`);
     }
 
     setIsLoading(true);

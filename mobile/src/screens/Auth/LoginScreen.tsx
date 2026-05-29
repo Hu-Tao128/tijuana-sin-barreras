@@ -8,6 +8,8 @@ import {
   Alert, 
   StatusBar 
 } from 'react-native';
+import auth from '@react-native-firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 // 1. Importamos tus componentes reutilizables rediseñados
 import Input from '../../components/Input';
@@ -16,22 +18,50 @@ import Button from '../../components/Button';
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // Estado opcional para probar el ActivityIndicator
+  const [isLoading, setIsLoading] = useState(false); // Usamos este estado para ambos flujos
 
-  const handleLogin = () => {
+  // Login con Correo y Contraseña Real (Firebase)
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Por favor llena todos los campos.');
       return;
     }
 
     setIsLoading(true);
-
-    // Simulando la futura conexión a Firebase Auth (2 segundos)
-    setTimeout(() => {
+    try {
+      await auth().signInWithEmailAndPassword(email, password);
+      // Nota: El cambio de estado de autenticación lo maneja App.tsx, no necesitas navegar manualmente aquí.
+    } catch (error: any) {
+      Alert.alert('Error de ingreso', error.message);
+    } finally {
       setIsLoading(false);
-      Alert.alert('Éxito', `Iniciando sesión con: ${email}`);
-    }, 2000);
+    }
   };
+
+  // Login con Google Real (Firebase + Google Sign-In)
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+        // 1. En las nuevas versiones, signIn() devuelve un objeto con la propiedad 'data'
+        const response = await GoogleSignin.signIn();
+        
+        // 2. Extraemos de forma segura el idToken desde 'data'
+        const idToken = response.data?.idToken;
+
+        if (!idToken) {
+        throw new Error("No se pudo obtener el ID Token de Google (data es null o no contiene idToken)");
+        }
+
+        // 3. Crear la credencial de Firebase e iniciar sesión
+        const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+        await auth().signInWithCredential(googleCredential);
+
+    } catch (error: any) {
+        Alert.alert('Error con Google', error.message);
+    } finally {
+        setIsLoading(false);
+    }
+    };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -45,7 +75,7 @@ export default function LoginScreen({ navigation }: any) {
         </View>
 
         <View style={styles.form}>
-          {/* 2. Reemplazamos los TextInput antiguos por tu nuevo componente Input */}
+          {/* Inputs de texto */}
           <Input
             label="Correo electrónico"
             placeholder="ejemplo@correo.com"
@@ -53,6 +83,7 @@ export default function LoginScreen({ navigation }: any) {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            editable={!isLoading}
           />
 
           <Input
@@ -61,9 +92,10 @@ export default function LoginScreen({ navigation }: any) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            editable={!isLoading}
           />
 
-          {/* 3. Reemplazamos el TouchableOpacity por tu nuevo componente Button */}
+          {/* Botón de Ingreso Tradicional */}
           <Button
             title="Ingresar"
             onPress={handleLogin}
@@ -71,10 +103,22 @@ export default function LoginScreen({ navigation }: any) {
             isLoading={isLoading}
           />
 
+          {/* Botón de Google (Añadido con una variante secundaria/outline si tu componente lo soporta) */}
+          <View style={styles.googleSpacer}>
+            <Button
+              title="Iniciar sesión con Google"
+              onPress={handleGoogleLogin}
+              variant="secondary" // Cambia a "outline" o el nombre que maneje tu componente para botones secundarios
+              isLoading={isLoading}
+            />
+          </View>
+
+          {/* Enlace de Registro */}
           <TouchableOpacity 
             style={styles.linkButton}
             onPress={() => navigation.navigate('Register')}
             activeOpacity={0.6}
+            disabled={isLoading}
           >
             <Text style={styles.linkText}>
               ¿No tienes cuenta? <Text style={styles.linkTextBold}>Regístrate aquí</Text>
@@ -86,21 +130,20 @@ export default function LoginScreen({ navigation }: any) {
   );
 }
 
-// 4. Tu StyleSheet ahora se reduce drásticamente quitando los estilos repetidos
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#F3F3F3', // --Neutro-Neutro-300
+    backgroundColor: '#F3F3F3', 
     justifyContent: 'center', 
     padding: 24 
   },
   card: { 
-    backgroundColor: '#FFF', // --Neutro-Neutro-100
+    backgroundColor: '#FFF', 
     paddingHorizontal: 24, 
     paddingVertical: 32,
     borderRadius: 16, 
     elevation: 4, 
-    shadowColor: '#161A1D', // --Neutro-Neutro-800
+    shadowColor: '#161A1D', 
     shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.08, 
     shadowRadius: 12 
@@ -112,38 +155,41 @@ const styles = StyleSheet.create({
   title: { 
     fontSize: 28, 
     fontWeight: 'bold', 
-    color: '#611232', // --Primarios-Guinda-600
+    color: '#611232', 
     textAlign: 'center', 
     marginBottom: 4,
     letterSpacing: -0.5,
   },
   subtitle: { 
     fontSize: 16, 
-    color: '#434343', // --Neutro-Neutro-700
+    color: '#434343', 
     textAlign: 'center',
     fontWeight: '500'
   },
   divider: {
     width: 40,
     height: 3,
-    backgroundColor: '#9B2247', // --Primarios-Guinda-500
+    backgroundColor: '#9B2247', 
     borderRadius: 2,
     marginTop: 12,
   },
   form: {
     width: '100%',
-    marginTop: 8, // Pequeño espacio extra antes de los inputs
+    marginTop: 8, 
+  },
+  googleSpacer: {
+    marginTop: 12, // Separación elegante entre el botón primario y el de Google
   },
   linkButton: {
-    marginTop: 16,
+    marginTop: 20,
     alignItems: 'center',
   },
   linkText: { 
-    color: '#767676', // --Neutro-Neutro-600
+    color: '#767676', 
     fontSize: 14, 
   },
   linkTextBold: {
-    color: '#9B2247', // --Primarios-Guinda-500
+    color: '#9B2247', 
     fontWeight: '700',
   }
 });
