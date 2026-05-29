@@ -110,11 +110,13 @@ export default function ReportDetailScreen({ route, navigation }: any) {
     setVoting(true);
     try {
       await confirmReport({ reportId });
+      Alert.alert('Voto registrado', 'Has confirmado que este reporte es real.');
     } catch (error: any) {
       if (error?.code === 'already-exists') {
         Alert.alert('Ya votaste', 'Ya has confirmado este reporte.');
       } else {
-        Alert.alert('Error', 'No se pudo registrar tu voto.');
+        const msg = error?.message ?? error?.code ?? 'Error desconocido.';
+        Alert.alert('Error al votar', msg);
       }
     } finally {
       setVoting(false);
@@ -125,11 +127,13 @@ export default function ReportDetailScreen({ route, navigation }: any) {
     setVoting(true);
     try {
       await rejectReport({ reportId });
+      Alert.alert('Voto registrado', 'Has rechazado este reporte.');
     } catch (error: any) {
       if (error?.code === 'already-exists') {
         Alert.alert('Ya votaste', 'Ya has rechazado este reporte.');
       } else {
-        Alert.alert('Error', 'No se pudo registrar tu voto.');
+        const msg = error?.message ?? error?.code ?? 'Error desconocido.';
+        Alert.alert('Error al votar', msg);
       }
     } finally {
       setVoting(false);

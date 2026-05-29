@@ -5,7 +5,7 @@ function call<TReq = Record<string, unknown>, TRes = unknown>(
   name: string,
 ) {
   return async (data: TReq): Promise<TRes> => {
-    const fn = functions().httpsCallable(name);
+    const fn = functions().httpsCallable(name, { timeout: 120000 });
     const result = await fn(data);
     return result.data as TRes;
   };

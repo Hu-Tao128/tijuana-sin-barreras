@@ -146,6 +146,7 @@ export default function ReportScreen({ navigation }: any) {
     } catch (error: any) {
       const msg =
         error?.message ?? error?.code ?? 'Error desconocido al enviar reporte.';
+      console.log('createReport error completo:', JSON.stringify(error, null, 2));
       Alert.alert('Error al enviar', msg);
     } finally {
       setSubmitting(false);
