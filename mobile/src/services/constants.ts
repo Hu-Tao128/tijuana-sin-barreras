@@ -1,14 +1,33 @@
 /**
  * services/constants.ts
  * Configuraciones centralizadas y API keys
- * 
- * ⚠️ IMPORTANTE: Usa variables de entorno en producción
- * nunca expongas API keys en el código
+ *
+ * Equivalente a dashboard/src/maps/constants.ts + vite-env.d.ts
+ *
+ * La misma API key (GOOGLE_MAPS_API) funciona para todos los servicios:
+ *  - Geocoding API
+ *  - Maps JavaScript API
+ *  - Maps SDK for Android
+ *  - Places API
+ *  - Places API (New)
+ *  - Routes API
+ *  - Street View Static API
+ *
+ * ⚠️ IMPORTANTE: Configura GOOGLE_MAPS_API en tu archivo .env
+ * y nunca expongas la API key en el código fuente.
  */
 
+import Config from 'react-native-config';
+
 // GOOGLE APIS
-export const GOOGLE_PLACES_API_KEY = 'AIzaSyDg5o-XQPbRxrZU8fYGWgcoSsfAiXrnb2k';
-export const GOOGLE_ROUTES_API_KEY = 'AIzaSyDg5o-XQPbRxrZU8fYGWgcoSsfAiXrnb2k';
+export const GOOGLE_MAPS_API: string = Config.GOOGLE_MAPS_API || '';
+
+// Routes API y Places API comparten la misma API key
+export const GOOGLE_ROUTES_API_KEY = GOOGLE_MAPS_API;
+export const GOOGLE_PLACES_API_KEY = GOOGLE_MAPS_API;
+
+// Gemini AI — lee GEMINI_API_KEY del .env, o usa GOOGLE_MAPS_API como fallback
+export const GEMINI_API_KEY: string = Config.GEMINI_API_KEY || GOOGLE_MAPS_API;
 
 // UBICACIÓN POR DEFECTO (TIJUANA)
 export const DEFAULT_LOCATION = {
