@@ -3,7 +3,7 @@ import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
-import {Role} from "../types/Role";
+import {Role} from "@tijuanasinbarreras/shared";
 
 export const getUsers = onCall(
   {maxInstances: 5},

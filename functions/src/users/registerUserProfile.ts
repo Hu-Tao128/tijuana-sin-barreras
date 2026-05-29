@@ -4,10 +4,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole, getUserRole} from "../middleware/roles";
-import {Role} from "../types/Role";
-import {MobilityProfile} from "../types/MobilityProfile";
-import {VisionProfile} from "../types/VisionProfile";
-import {Language} from "../types/Language";
+import {Language, MobilityProfile, Role, VisionProfile} from "@tijuanasinbarreras/shared";
 
 export const registerUserProfile = onCall(
   {maxInstances: 10},

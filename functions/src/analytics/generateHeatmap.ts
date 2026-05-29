@@ -2,12 +2,7 @@ import {onCall} from "firebase-functions/v2/https";
 import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
-import type {Report} from "../types/Report";
-
-interface ZoneCount {
-  zone: string;
-  count: number;
-}
+import type {Report, HeatmapZone} from "@tijuanasinbarreras/shared";
 
 function getZoneName(latitude: number, longitude: number): string {
   const zones: Array<{
@@ -86,7 +81,7 @@ export const generateHeatmap = onCall(
       zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
     });
 
-    const heatmap: ZoneCount[] = Object.entries(zoneCounts)
+    const heatmap: HeatmapZone[] = Object.entries(zoneCounts)
       .map(([zone, count]) => ({zone, count}))
       .sort((a, b) => b.count - a.count);
 

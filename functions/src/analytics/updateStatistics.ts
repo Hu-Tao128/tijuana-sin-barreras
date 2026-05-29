@@ -1,7 +1,7 @@
 import {onValueWritten} from "firebase-functions/v2/database";
 import {getDatabase, ServerValue} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
-import {ReportStatus} from "../types/ReportStatus";
+import {ReportStatus} from "@tijuanasinbarreras/shared";
 
 interface ReportData {
   status?: string;

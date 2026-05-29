@@ -2,7 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getDatabase, ServerValue} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser, getUserId} from "../middleware/auth";
-import type {Confirmation} from "../types/Confirmation";
+import type {Confirmation} from "@tijuanasinbarreras/shared";
 
 export const rejectReport = onCall(
   {maxInstances: 10},

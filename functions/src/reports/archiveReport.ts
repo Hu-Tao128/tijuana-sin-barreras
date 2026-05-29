@@ -3,9 +3,8 @@ import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
-import {Role} from "../types/Role";
-import {ReportStatus} from "../types/ReportStatus";
-import type {Report} from "../types/Report";
+import {Role, ReportStatus} from "@tijuanasinbarreras/shared";
+import type {Report} from "@tijuanasinbarreras/shared";
 
 export const archiveReport = onCall(
   {maxInstances: 10},

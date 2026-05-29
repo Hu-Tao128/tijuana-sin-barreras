@@ -5,11 +5,10 @@ import * as logger from "firebase-functions/logger";
 import {verifyUser, getUserId} from "../middleware/auth";
 import {checkRateLimit} from "../middleware/ratelimit";
 import {validateReport} from "../middleware/validation";
-import {ReportStatus} from "../types/ReportStatus";
-import {MobilityProfile} from "../types/MobilityProfile";
 import {classifyBarrier} from "../gemini/classifyBarrier";
 import {detectSpam} from "../gemini/detectSpam";
-import type {Report} from "../types/Report";
+import {MobilityProfile, ReportStatus} from "@tijuanasinbarreras/shared";
+import type {Report} from "@tijuanasinbarreras/shared";
 
 function isValidStorageUrl(photoUrl?: string): boolean {
   if (!photoUrl) {

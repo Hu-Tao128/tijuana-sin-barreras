@@ -1,6 +1,6 @@
 import {HttpsError} from "firebase-functions/v2/https";
-import {Report} from "../types/Report";
-import {BarrierType} from "../types/BarrierType";
+import {BarrierType} from "@tijuanasinbarreras/shared";
+import type {Report} from "@tijuanasinbarreras/shared";
 
 const VALID_BARRIER_TYPES = Object.values(BarrierType);
 

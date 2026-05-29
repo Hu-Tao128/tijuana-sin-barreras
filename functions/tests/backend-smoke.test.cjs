@@ -5,8 +5,8 @@ const { HttpsError } = require('firebase-functions/v2/https');
 const { validateReport } = require('../lib/middleware/validation.js');
 const { verifyUser, getUserId } = require('../lib/middleware/auth.js');
 const { requireRole } = require('../lib/middleware/roles.js');
-const { BarrierType } = require('../lib/types/BarrierType.js');
-const { Role } = require('../lib/types/Role.js');
+const { BarrierType } = require('@tijuanasinbarreras/shared');
+const { Role } = require('@tijuanasinbarreras/shared');
 
 function buildAuthRequest(uid, role) {
   return {

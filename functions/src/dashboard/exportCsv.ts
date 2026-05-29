@@ -3,8 +3,8 @@ import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
-import {Role} from "../types/Role";
-import type {Report} from "../types/Report";
+import {Role} from "@tijuanasinbarreras/shared";
+import type {Report} from "@tijuanasinbarreras/shared";
 
 function escapeCsvField(field: string | number | boolean | undefined | null): string {
   if (field === undefined || field === null) return "";
