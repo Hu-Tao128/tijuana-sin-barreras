@@ -32,4 +32,6 @@ export interface Report {
   createdAt: number;
 
   updatedAt?: number;
+
+  archiveReason?: string;
 }

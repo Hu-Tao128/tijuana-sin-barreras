@@ -13,7 +13,10 @@ export const archiveReport = onCall(
     await verifyUser(request);
     await requireRole(request, Role.MODERATOR);
 
-    const {reportId} = request.data as { reportId: string };
+    const {reportId, archiveReason} = request.data as {
+      reportId: string;
+      archiveReason?: string;
+    };
 
     if (!reportId) {
       throw new HttpsError(
@@ -21,6 +24,11 @@ export const archiveReport = onCall(
         "reportId es requerido."
       );
     }
+
+    const validReasons = ["fixed", "duplicate", "invalid", "other"];
+    const reason = archiveReason && validReasons.includes(archiveReason)
+      ? archiveReason
+      : "other";
 
     const db = getDatabase();
     const reportRef = db.ref(`reports/${reportId}`);
@@ -36,16 +44,18 @@ export const archiveReport = onCall(
     await reportRef.update({
       status: ReportStatus.ARCHIVED,
       updatedAt: now,
+      archiveReason: reason,
     });
 
     logger.info("Reporte archivado", {
       reportId,
       previousStatus: report.status,
+      archiveReason: reason,
     });
 
     return {
       success: true,
-      report: {...report, status: ReportStatus.ARCHIVED, updatedAt: now},
+      report: {...report, status: ReportStatus.ARCHIVED, updatedAt: now, archiveReason: reason},
     };
   }
 );
