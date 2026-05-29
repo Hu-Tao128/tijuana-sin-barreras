@@ -1,59 +1,94 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import type { ReportStatus } from '../services/types';
+import { REPORT_STATUS_LABELS } from '../services/types';
 
 interface CardReportProps {
   title: string;
   description: string;
-  status: 'pending' | 'confirmed' | 'resolved';
+  status: ReportStatus;
   location: string;
+  severity?: number;
+  confirmations?: number;
+  rejections?: number;
   onPress?: () => void;
 }
 
-export default function CardReport({ title, description, status, location, onPress }: CardReportProps) {
-  
-  // Mapeo adaptado a la identidad de la app con contenedores (Badges)
-  const statusConfig = {
-    pending: { 
-      text: 'Pendiente', 
-      textColor: '#767676', // --Neutro-Neutro-600
-      bgColor: '#F3F3F3'    // --Neutro-Neutro-300
-    },
-    confirmed: { 
-      text: 'Confirmado', 
-      textColor: '#9B2247', // --Primarios-Guinda-500
-      bgColor: '#FDECEF'    // Variación muy clara del guinda para fondo del badge
-    },
-    resolved: { 
-      text: 'Resuelto', 
-      textColor: '#FFF',    // --Neutro-Neutro-100
-      bgColor: '#611232'    // --Presidencia-principal-600
-    }
-  };
+const STATUS_STYLES: Record<
+  ReportStatus,
+  { textColor: string; bgColor: string; label: string }
+> = {
+  pending: {
+    textColor: '#767676',
+    bgColor: '#F3F3F3',
+    label: REPORT_STATUS_LABELS.pending,
+  },
+  verified: {
+    textColor: '#9B2247',
+    bgColor: '#FDECEF',
+    label: REPORT_STATUS_LABELS.verified,
+  },
+  rejected: {
+    textColor: '#ef4444',
+    bgColor: '#fef2f2',
+    label: REPORT_STATUS_LABELS.rejected,
+  },
+  archived: {
+    textColor: '#6b7280',
+    bgColor: '#f3f4f6',
+    label: REPORT_STATUS_LABELS.archived,
+  },
+};
 
-  const config = statusConfig[status];
+export default function CardReport({
+  title,
+  description,
+  status,
+  location,
+  confirmations = 0,
+  rejections = 0,
+  onPress,
+}: CardReportProps) {
+  const config = STATUS_STYLES[status] ?? STATUS_STYLES.pending;
 
   return (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={onPress} 
-      disabled={!onPress} 
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onPress}
+      disabled={!onPress}
       activeOpacity={0.8}
     >
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>{title}</Text>
-        
-        {/* Badge Dinámico */}
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+
         <View style={[styles.badge, { backgroundColor: config.bgColor }]}>
           <Text style={[styles.statusText, { color: config.textColor }]}>
-            {config.text}
+            {config.label}
           </Text>
         </View>
       </View>
-      
-      <Text style={styles.description} numberOfLines={2}>{description}</Text>
-      
+
+      <Text style={styles.description} numberOfLines={2}>
+        {description}
+      </Text>
+
       <View style={styles.footer}>
-        <Text style={styles.location} numberOfLines={1}>📍 {location}</Text>
+        <View style={styles.footerLeft}>
+          <Text style={styles.location} numberOfLines={1}>
+            {'📍 '}{location}
+          </Text>
+        </View>
+
+        <View style={styles.votes}>
+          <Text style={styles.voteText}>
+            {'✅ '}{confirmations}
+          </Text>
+          <Text style={styles.voteText}>
+            {'❌ '}{rejections}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -61,15 +96,14 @@ export default function CardReport({ title, description, status, location, onPre
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFF', // --Neutro-Neutro-100
+    backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 18,
     marginVertical: 8,
     borderWidth: 1,
-    borderColor: '#DDD', // --Neutro-Neutro-400 (Le da estructura antes de la sombra)
-    // Sombras sutiles integradas con tu negro neutro
+    borderColor: '#DDD',
     elevation: 3,
-    shadowColor: '#161A1D', // --Neutro-Neutro-800
+    shadowColor: '#161A1D',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -80,39 +114,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  title: { 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: '#161A1D', // --Neutro-Neutro-800
-    flex: 1, 
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#161A1D',
+    flex: 1,
     marginRight: 12,
-    letterSpacing: -0.2
+    letterSpacing: -0.2,
   },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 20, // Forma de píldora moderna
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusText: { 
-    fontSize: 12, 
+  statusText: {
+    fontSize: 12,
     fontWeight: '700',
   },
-  description: { 
-    fontSize: 14, 
-    color: '#434343', // --Neutro-Neutro-700 (Mayor contraste para lectura fluida)
-    marginBottom: 14, 
-    lineHeight: 20 
+  description: {
+    fontSize: 14,
+    color: '#434343',
+    marginBottom: 14,
+    lineHeight: 20,
   },
-  footer: { 
-    borderTopWidth: 1, 
-    borderTopColor: '#F3F3F3', // --Neutro-Neutro-300
-    paddingTop: 10, 
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: '#F3F3F3',
+    paddingTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  location: { 
-    fontSize: 13, 
-    color: '#767676', // --Neutro-Neutro-600
-    fontWeight: '500' 
+  footerLeft: {
+    flex: 1,
+  },
+  location: {
+    fontSize: 13,
+    color: '#767676',
+    fontWeight: '500',
+  },
+  votes: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  voteText: {
+    fontSize: 12,
+    color: '#767676',
+    fontWeight: '500',
   },
 });
