@@ -1,6 +1,6 @@
-import {BarrierType} from "./BarrierType";
-import {ReportStatus} from "./ReportStatus";
-import {MobilityProfile} from "./MobilityProfile";
+import {BarrierType} from "./BarrierType.js";
+import {ReportStatus} from "./ReportStatus.js";
+import {MobilityProfile} from "./MobilityProfile.js";
 
 export interface Report {
   id: string;

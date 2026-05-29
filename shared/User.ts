@@ -1,7 +1,7 @@
-import {Role} from "./Role";
-import {MobilityProfile} from "./MobilityProfile";
-import {VisionProfile} from "./VisionProfile";
-import {Language} from "./Language";
+import {Role} from "./Role.js";
+import {MobilityProfile} from "./MobilityProfile.js";
+import {VisionProfile} from "./VisionProfile.js";
+import {Language} from "./Language.js";
 
 export interface EmergencyContact {
   name: string;
