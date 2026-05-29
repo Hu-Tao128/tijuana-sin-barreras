@@ -18,7 +18,7 @@
   "main": "lib/index.js",
   "dependencies": {
     "@google/genai": "^2.7.0",
-    "@tijuanasinbarreras/shared": "file:../shared",
+    "@tijuanasinbarreras/shared": "file:./shared",
     "firebase-admin": "^13.10.0",
     "firebase-functions": "^7.2.5"
   },
