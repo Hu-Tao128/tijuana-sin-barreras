@@ -23,7 +23,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Linking } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import firestore from '@react-native-firebase/firestore';
+import database from '@react-native-firebase/database';
 import { DEFAULT_LOCATION } from '../../services/constants';
 import { POINTS_OF_INTEREST, getColorForCategory } from '../../services/points-of-interest';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
@@ -175,56 +175,47 @@ export default function MapScreen() {
     getUserLocation();
 
     try {
-      const reportsRef = firestore().collection('reports');
+      const reportsRef = database().ref('reports');
       
-      // ✅ SOLUCIÓN: Agregar manejo de errores y timeout
-      const unsubscribe = reportsRef.onSnapshot(
+      const unsubscribe = reportsRef.on('value',
         (snapshot) => {
-          console.log('✅ Firestore conectado exitosamente');
+          console.log('✅ Realtime Database conectado exitosamente');
           const data: Report[] = [];
-          setFirebaseError(null); // Limpiar errores anteriores
+          setFirebaseError(null);
 
-          snapshot.forEach(doc => {
-            const report = doc.data();
-
-            // Validar que tenga coordenadas válidas
-            if (
-              report.latitude !== undefined &&
-              report.longitude !== undefined &&
-              typeof report.latitude === 'number' &&
-              typeof report.longitude === 'number'
-            ) {
-              data.push({
-                id: doc.id,
-                type: report.type || 'Barrera',
-                latitude: report.latitude,
-                longitude: report.longitude,
-                severity: report.severity || 'medium',
-              });
-            }
-          });
+          const reportsObj = snapshot.val() as Record<string, any> | null;
+          if (reportsObj) {
+            Object.entries(reportsObj).forEach(([key, report]) => {
+              if (
+                report.latitude !== undefined &&
+                report.longitude !== undefined &&
+                typeof report.latitude === 'number' &&
+                typeof report.longitude === 'number'
+              ) {
+                data.push({
+                  id: key || report.id,
+                  type: report.type || 'Barrera',
+                  latitude: report.latitude,
+                  longitude: report.longitude,
+                  severity: report.severity || 'medium',
+                });
+              }
+            });
+          }
 
           console.log(`✅ Cargados ${data.length} reportes`);
           setReports(data);
         },
-        (error) => {
-          console.error('❌ Firebase Error:', error.code, error.message);
+        (error: Error) => {
+          console.error('❌ Firebase Error:', error);
           
-          // Mostrar mensaje legible del error
-          if (error.code === 'permission-denied') {
-            setFirebaseError('⚠️ Permisos insuficientes. Contacta al administrador.');
-          } else if (error.code === 'unauthenticated') {
-            setFirebaseError('⚠️ Necesitas iniciar sesión.');
-          } else {
-            setFirebaseError(`Error: ${error.message}`);
-          }
+          setFirebaseError('Error al cargar reportes. Verifica tu conexión.');
           
-          // Continuar mostrando el mapa aunque haya error
           setReports([]);
         },
       );
 
-      return () => unsubscribe();
+      return () => reportsRef.off('value', unsubscribe);
     } catch (error) {
       console.error('❌ General Firebase Error:', error);
       setFirebaseError('Error al conectar con la base de datos');

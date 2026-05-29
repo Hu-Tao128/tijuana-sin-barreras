@@ -29,7 +29,7 @@ import {
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Geolocation from 'react-native-geolocation-service';
-import firestore from '@react-native-firebase/firestore';
+import database from '@react-native-firebase/database';
 import { searchPlaces, getPlaceDetails } from '../../services/google-places-api';
 import { getRoutes } from '../../services/google-routes-api';
 import {
@@ -397,37 +397,39 @@ export default function RouteScreen() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [mapRegion, setMapRegion] = useState<MapRegion>(DEFAULT_LOCATION);
 
-  // Cargar reportes de Firestore
+  // Cargar reportes de Realtime Database
   useEffect(() => {
     try {
-      const reportsRef = firestore().collection('reports');
-      const unsubscribe = reportsRef.onSnapshot(
+      const reportsRef = database().ref('reports');
+      const unsubscribe = reportsRef.on('value',
         (snapshot) => {
           const data: Report[] = [];
-          snapshot.forEach(doc => {
-            const report = doc.data();
-            if (report.latitude !== undefined && report.longitude !== undefined) {
-              data.push({
-                id: doc.id,
-                latitude: report.latitude,
-                longitude: report.longitude,
-                type: report.type || 'Obstáculo',
-                severity: report.severity || 'medium',
-                date: report.date || Date.now(),
-                description: report.description,
-              });
-            }
-          });
+          const reportsObj = snapshot.val() as Record<string, any> | null;
+          if (reportsObj) {
+            Object.entries(reportsObj).forEach(([key, report]) => {
+              if (report.latitude !== undefined && report.longitude !== undefined) {
+                data.push({
+                  id: key || report.id,
+                  latitude: report.latitude,
+                  longitude: report.longitude,
+                  type: report.type || 'Obstáculo',
+                  severity: report.severity || 'medium',
+                  date: report.createdAt || report.date || Date.now(),
+                  description: report.description,
+                });
+              }
+            });
+          }
           setReports(data);
         },
-        (error) => {
+        (error: Error) => {
           console.error('Error cargando reportes:', error);
           Alert.alert('Error', 'No se pudieron cargar los reportes');
         }
       );
-      return () => unsubscribe();
+      return () => reportsRef.off('value', unsubscribe);
     } catch (error) {
-      console.error('Error en Firestore:', error);
+      console.error('Error en Realtime Database:', error);
     }
   }, []);
 
