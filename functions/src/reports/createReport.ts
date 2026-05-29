@@ -41,8 +41,8 @@ export const createReport = onCall(
       userId,
       type: payload.type,
       severity: payload.severity ?? 5,
-      description: payload.description,
-      photoUrl: payload.photoUrl,
+      description: payload.description || "",
+      photoUrl: payload.photoUrl || "",
       latitude: payload.latitude,
       longitude: payload.longitude,
       geohash: encodeGeohash(payload.latitude, payload.longitude),
@@ -54,7 +54,12 @@ export const createReport = onCall(
       createdAt: now,
     };
 
-    await newReportRef.set(report);
+    // RTDB doesn't allow undefined values. We use empty strings or remove properties.
+    // Given the Report interface expects these fields, empty strings are safer if the interface allows it.
+    // However, if the interface says they are optional, we should delete them.
+    const cleanReport = JSON.parse(JSON.stringify(report));
+
+    await newReportRef.set(cleanReport);
 
     const analyticsRef = db.ref("analytics");
     await analyticsRef.child("totalReports").set(ServerValue.increment(1));

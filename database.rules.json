@@ -3,9 +3,9 @@
     "reports": {
       ".read": "auth != null",
       ".write": false,
+      ".indexOn": ["userId", "geohash", "status"],
       "$reportId": {
-        ".write": false,
-        ".indexOn": ["userId", "geohash", "status"]
+        ".write": false
       }
     },
     "confirmations": {
