@@ -4,7 +4,14 @@ import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
 import {Role, ReportStatus} from "@tijuanasinbarreras/shared";
-import type {Report} from "@tijuanasinbarreras/shared";
+import type {ArchiveReason, Report} from "@tijuanasinbarreras/shared";
+
+const VALID_ARCHIVE_REASONS: readonly ArchiveReason[] = [
+  "fixed",
+  "duplicate",
+  "invalid",
+  "other",
+];
 
 export const archiveReport = onCall(
   {maxInstances: 10},
@@ -12,7 +19,11 @@ export const archiveReport = onCall(
     await verifyUser(request);
     await requireRole(request, Role.MODERATOR);
 
-    const {reportId} = request.data as { reportId: string };
+    const {reportId, archiveReason, reason} = request.data as {
+      reportId: string;
+      archiveReason?: string;
+      reason?: string;
+    };
 
     if (!reportId) {
       throw new HttpsError(
@@ -20,6 +31,12 @@ export const archiveReport = onCall(
         "reportId es requerido."
       );
     }
+
+    const requestedReason = archiveReason ?? reason;
+    const resolvedReason = requestedReason &&
+      VALID_ARCHIVE_REASONS.includes(requestedReason as ArchiveReason) ?
+      (requestedReason as ArchiveReason) :
+      "other";
 
     const db = getDatabase();
     const reportRef = db.ref(`reports/${reportId}`);
@@ -35,16 +52,25 @@ export const archiveReport = onCall(
     await reportRef.update({
       status: ReportStatus.ARCHIVED,
       updatedAt: now,
+      archiveReason: resolvedReason,
+      resolvedAt: resolvedReason === "fixed" ? now : null,
     });
 
     logger.info("Reporte archivado", {
       reportId,
       previousStatus: report.status,
+      archiveReason: resolvedReason,
     });
 
     return {
       success: true,
-      report: {...report, status: ReportStatus.ARCHIVED, updatedAt: now},
+      report: {
+        ...report,
+        status: ReportStatus.ARCHIVED,
+        updatedAt: now,
+        archiveReason: resolvedReason,
+        resolvedAt: resolvedReason === "fixed" ? now : undefined,
+      },
     };
   }
 );

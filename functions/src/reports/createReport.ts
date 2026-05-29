@@ -5,6 +5,7 @@ import * as logger from "firebase-functions/logger";
 import {verifyUser, getUserId} from "../middleware/auth";
 import {checkRateLimit} from "../middleware/ratelimit";
 import {validateReport} from "../middleware/validation";
+import {encode as encodeGeohash} from "../middleware/geohash";
 import {classifyBarrier} from "../gemini/classifyBarrier";
 import {detectSpam} from "../gemini/detectSpam";
 import {MobilityProfile, ReportStatus} from "@tijuanasinbarreras/shared";
@@ -86,6 +87,7 @@ export const createReport = onCall(
       photoUrl: payload.photoUrl,
       latitude: payload.latitude,
       longitude: payload.longitude,
+      geohash: encodeGeohash(payload.latitude, payload.longitude),
       reporterMobilityProfile,
       verified: false,
       confirmations: 0,

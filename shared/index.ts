@@ -6,8 +6,9 @@ export {VisionProfile} from "./VisionProfile.js";
 export {Language} from "./Language.js";
 export type {Location} from "./Location.js";
 export type {User, EmergencyContact} from "./User.js";
-export type {Report} from "./Report.js";
+export type {ArchiveReason, Report} from "./Report.js";
 export type {Confirmation} from "./Confirmation.js";
+export type {Comment} from "./Comment.js";
 export {AccessibilityPenalty} from "./AccessibilityScore.js";
 
 export {BARRIER_TYPE_LABELS, REPORT_STATUS_LABELS} from "./labels.js";

@@ -3,22 +3,51 @@ import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
-import {requireRole, getUserRole} from "../middleware/roles";
 import {Language, MobilityProfile, Role, VisionProfile} from "@tijuanasinbarreras/shared";
+
+const EDITABLE_FIELDS = [
+  "displayName",
+  "phoneNumber",
+  "photoURL",
+  "edad",
+  "mobilityProfile",
+  "maxWalkingMeters",
+  "canClimbStairs",
+  "maxStairSteps",
+  "visionProfile",
+  "transportModes",
+  "needsLowNoise",
+  "emergencyContact",
+  "preferredLanguage",
+] as const;
+
+function extractEditableFields(data: Record<string, unknown>): Record<string, unknown> {
+  const editable: Record<string, unknown> = {};
+  for (const field of EDITABLE_FIELDS) {
+    if (field in data && data[field] !== undefined) {
+      editable[field] = data[field];
+    }
+  }
+  return editable;
+}
 
 export const registerUserProfile = onCall(
   {maxInstances: 10},
   async (request) => {
     await verifyUser(request);
 
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Usuario no autenticado.");
+    }
+
+    const uid = request.auth.uid;
+
     const {
-      uid,
       displayName,
       email,
       phoneNumber,
       photoURL,
       edad,
-      role,
       mobilityProfile,
       maxWalkingMeters,
       canClimbStairs,
@@ -29,9 +58,8 @@ export const registerUserProfile = onCall(
       emergencyContact,
       preferredLanguage,
     } = request.data as {
-      uid: string;
-      displayName: string;
-      email: string;
+      displayName?: string;
+      email?: string;
       phoneNumber?: string;
       photoURL?: string;
       edad?: number;
@@ -47,55 +75,59 @@ export const registerUserProfile = onCall(
       preferredLanguage?: Language;
     };
 
-    if (!uid || !displayName || !email) {
-      throw new HttpsError(
-        "invalid-argument",
-        "uid, displayName y email son requeridos."
-      );
-    }
-
-    const targetRole = role ?? Role.CITIZEN;
-
-    if (targetRole !== Role.CITIZEN) {
-      await requireRole(request, Role.MODERATOR);
-    }
-
     const db = getFirestore();
     const userRef = db.collection("users").doc(uid);
     const existingDoc = await userRef.get();
 
-    const now = Date.now();
+    const authUser = await admin.auth().getUser(uid);
+
+    const editableData = extractEditableFields(request.data as Record<string, unknown>);
 
     if (existingDoc.exists) {
-      const existingData = existingDoc.data() ?? {};
+      const updateData: Record<string, unknown> = {
+        ...editableData,
+        email: email ?? authUser.email ?? existingDoc.data()?.email ?? "",
+        displayName: displayName ?? authUser.displayName ?? existingDoc.data()?.displayName ?? "",
+        photoURL: photoURL ?? authUser.photoURL ?? existingDoc.data()?.photoURL ?? null,
+        lastLoginAt: Timestamp.fromMillis(Date.now()),
+      };
 
-      if (existingData.role !== targetRole) {
-        const callerRole = getUserRole(request);
-
-        if (callerRole === Role.CITIZEN && targetRole !== Role.CITIZEN) {
-          throw new HttpsError(
-            "permission-denied",
-            "No tienes permisos para asignar este rol."
-          );
+      if (displayName) {
+        try {
+          await admin.auth().updateUser(uid, {displayName});
+        } catch {
+          logger.warn("No se pudo actualizar displayName en Auth", {uid});
         }
       }
+
+      await userRef.update(updateData);
+
+      logger.info("Perfil de usuario actualizado", {uid});
+
+      const updatedDoc = await userRef.get();
+      const fullData = updatedDoc.data() ?? {};
+
+      return {
+        success: true,
+        user: {
+          uid,
+          ...fullData,
+          createdAt: fullData.createdAt?.toMillis?.() ?? fullData.createdAt,
+          lastLoginAt: fullData.lastLoginAt?.toMillis?.() ?? fullData.lastLoginAt,
+        },
+      };
     }
 
-    await admin.auth().setCustomUserClaims(uid, {role: targetRole});
+    const now = Date.now();
 
-    const existingCounts = existingDoc.exists ? {
-      reportCount: existingDoc.data()?.reportCount ?? 0,
-      verifiedReportCount: existingDoc.data()?.verifiedReportCount ?? 0,
-    } : {reportCount: 0, verifiedReportCount: 0};
-
-    await userRef.set({
+    const profile = {
       uid,
-      displayName,
-      email,
+      displayName: displayName ?? authUser.displayName ?? "",
+      email: email ?? authUser.email ?? "",
       phoneNumber: phoneNumber ?? null,
-      photoURL: photoURL ?? null,
+      photoURL: photoURL ?? authUser.photoURL ?? null,
       edad: edad ?? null,
-      role: targetRole,
+      role: Role.CITIZEN,
       isActive: true,
       mobilityProfile: mobilityProfile ?? null,
       maxWalkingMeters: maxWalkingMeters ?? null,
@@ -106,19 +138,24 @@ export const registerUserProfile = onCall(
       needsLowNoise: needsLowNoise ?? false,
       emergencyContact: emergencyContact ?? null,
       preferredLanguage: preferredLanguage ?? Language.ES,
-      reportCount: existingCounts.reportCount,
-      verifiedReportCount: existingCounts.verifiedReportCount,
-      createdAt: existingDoc.exists ?
-        (existingDoc.data() ?? {}).createdAt :
-        Timestamp.fromMillis(now),
+      reportCount: 0,
+      verifiedReportCount: 0,
+      createdAt: Timestamp.fromMillis(now),
       lastLoginAt: Timestamp.fromMillis(now),
-    });
+    };
 
-    logger.info("Usuario registrado en Firestore", {uid, role: targetRole});
+    await userRef.set(profile);
+    await admin.auth().setCustomUserClaims(uid, {role: Role.CITIZEN});
+
+    logger.info("Usuario registrado en Firestore", {uid, role: Role.CITIZEN});
 
     return {
       success: true,
-      user: {uid, displayName, email, role: targetRole},
+      user: {
+        ...profile,
+        createdAt: now,
+        lastLoginAt: now,
+      },
     };
   }
 );

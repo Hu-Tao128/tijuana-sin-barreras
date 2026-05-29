@@ -30,18 +30,27 @@ export const updateStatistics = onValueWritten(
     const analyticsRef = db.ref("analytics");
 
     if (!afterData && beforeData) {
-      await analyticsRef.child("totalReports").set(
-        ServerValue.increment(-1)
-      );
+      await analyticsRef.child("totalReports").set(ServerValue.increment(-1));
+      if (beforeData.status === ReportStatus.VERIFIED) {
+        await analyticsRef.child("verifiedReports").set(
+          ServerValue.increment(-1)
+        );
+      }
       logger.info("Reporte eliminado de estadísticas", {reportId});
       return;
     }
 
     if (afterData && !beforeData) {
+      await analyticsRef.child("totalReports").set(ServerValue.increment(1));
       const today = new Date().toISOString().split("T")[0];
       await analyticsRef.child("reportsByDay").child(today).set(
         ServerValue.increment(1)
       );
+      if (afterData.status === ReportStatus.VERIFIED) {
+        await analyticsRef.child("verifiedReports").set(
+          ServerValue.increment(1)
+        );
+      }
       logger.info("Estadísticas actualizadas para nuevo reporte", {reportId});
       return;
     }
