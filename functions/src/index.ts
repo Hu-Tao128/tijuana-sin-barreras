@@ -25,3 +25,5 @@ export {registerUserProfile} from "./users/registerUserProfile";
 export {setUserRole} from "./users/setUserRole";
 export {getCurrentUserProfile} from "./users/getCurrentUserProfile";
 export {getUsers} from "./users/getUsers";
+export {onUserCreate} from "./users/onAuthCreate";
+export {migrateUsersHttp} from "./users/migrateUsersHttp";

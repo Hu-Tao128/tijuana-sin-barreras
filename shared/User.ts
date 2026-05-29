@@ -19,6 +19,10 @@ export interface User {
 
   photoURL?: string;
 
+  emailVerified?: boolean;
+
+  disabled?: boolean;
+
   edad?: number;
 
   role: Role;
