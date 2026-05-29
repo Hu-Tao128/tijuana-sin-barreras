@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth'; // 👈 Importamos el tipo de usuario
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-import MainTabNavigator from './navigation/MainTabNavigator';
+import MainStackNavigator from './navigation/MainStackNavigator';
 import AuthNavigator from './navigation/AuthNavigator';
 
 export default function App() {
@@ -57,7 +57,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <NavigationContainer>
-        {user ? <MainTabNavigator /> : <AuthNavigator />}
+        {user ? <MainStackNavigator /> : <AuthNavigator />}
       </NavigationContainer>
     </SafeAreaView>
   );
