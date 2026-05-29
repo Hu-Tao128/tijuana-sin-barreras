@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
+import { useAppSettings } from '../contexts/AppSettingsContext'
 import type { Report } from '../types'
 import './ReportsHeatmap.css'
 
@@ -37,6 +38,7 @@ function HeatLayer({ points }: { points: HeatPoint[] }) {
 }
 
 export function ReportsHeatmap({ reports }: { reports: Report[] }) {
+  const { t } = useAppSettings()
   const points: HeatPoint[] = reports
     .filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude))
     .map((r) => [r.latitude, r.longitude, Math.min(Math.max(r.severity, 1), 10) / 10])
@@ -52,13 +54,15 @@ export function ReportsHeatmap({ reports }: { reports: Report[] }) {
       </MapContainer>
 
       <div className="reports-heatmap__legend" aria-label="Leyenda del mapa de calor">
-        <span className="reports-heatmap__legend-title">Concentración de reportes</span>
+        <span className="reports-heatmap__legend-title">{t('heatmap.legend')}</span>
         <div className="reports-heatmap__legend-bar" />
         <div className="reports-heatmap__legend-labels">
-          <span>Baja</span>
-          <span>Alta</span>
+          <span>{t('heatmap.low')}</span>
+          <span>{t('heatmap.high')}</span>
         </div>
-        <span className="reports-heatmap__legend-count">{points.length} reportes</span>
+        <span className="reports-heatmap__legend-count">
+          {t('heatmap.count', { count: points.length })}
+        </span>
       </div>
     </div>
   )
