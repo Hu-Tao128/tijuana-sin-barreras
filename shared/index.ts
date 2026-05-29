@@ -1,8 +1,15 @@
-export { Role } from "./Role";
-export { BarrierType } from "./BarrierType";
-export { ReportStatus } from "./ReportStatus";
-export type { Location } from "./Location";
-export type { User } from "./User";
-export type { Report } from "./Report";
-export type { Confirmation } from "./Confirmation";
-export { AccessibilityPenalty } from "./AccessibilityScore";
+export {Role} from "./Role.js";
+export {BarrierType} from "./BarrierType.js";
+export {ReportStatus} from "./ReportStatus.js";
+export {MobilityProfile} from "./MobilityProfile.js";
+export {VisionProfile} from "./VisionProfile.js";
+export {Language} from "./Language.js";
+export type {Location} from "./Location.js";
+export type {User, EmergencyContact} from "./User.js";
+export type {ArchiveReason, Report} from "./Report.js";
+export type {Confirmation} from "./Confirmation.js";
+export type {Comment} from "./Comment.js";
+export {AccessibilityPenalty} from "./AccessibilityScore.js";
+
+export {BARRIER_TYPE_LABELS, REPORT_STATUS_LABELS} from "./labels.js";
+export type {DashboardStats, HeatmapZone} from "./stats.js";

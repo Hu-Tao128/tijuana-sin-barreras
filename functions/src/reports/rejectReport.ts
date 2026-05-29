@@ -2,7 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getDatabase, ServerValue} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser, getUserId} from "../middleware/auth";
-import type {Confirmation} from "../types/Confirmation";
+import type {Confirmation} from "@tijuanasinbarreras/shared";
 
 export const rejectReport = onCall(
   {maxInstances: 10},
@@ -27,43 +27,40 @@ export const rejectReport = onCall(
       throw new HttpsError("not-found", "El reporte no existe.");
     }
 
-    const existingRejectionsRef = db.ref("confirmations");
-    const existingSnapshot = await existingRejectionsRef
-      .orderByChild("reportId")
-      .equalTo(reportId)
-      .once("value");
+    const voteKey = `${reportId}_${userId}`;
+    const voteRef = db.ref(`confirmations/${voteKey}`);
+    const existingVote = await voteRef.once("value");
 
-    let alreadyRejected = false;
-
-    existingSnapshot.forEach((child) => {
-      const confirmation = child.val() as Confirmation;
-      if (confirmation.userId === userId && !confirmation.isConfirmed) {
-        alreadyRejected = true;
+    if (existingVote.exists()) {
+      const prevVote = existingVote.val() as Confirmation;
+      if (!prevVote.isConfirmed) {
+        throw new HttpsError(
+          "already-exists",
+          "Ya has emitido un voto de rechazo para este reporte."
+        );
       }
-    });
 
-    if (alreadyRejected) {
-      throw new HttpsError(
-        "already-exists",
-        "Ya has rechazado este reporte."
-      );
+      await voteRef.update({isConfirmed: false, createdAt: Date.now()});
+      await reportRef.child("rejections").set(ServerValue.increment(1));
+      await reportRef.child("confirmations").set(ServerValue.increment(-1));
+
+      logger.info("Voto cambiado a rechazo", {reportId, userId});
+      return {
+        success: true,
+        confirmation: {...prevVote, isConfirmed: false, createdAt: Date.now()},
+      };
     }
 
-    const confirmationsRef = db.ref("confirmations");
-    const newConfirmationRef = confirmationsRef.push();
-
     const now = Date.now();
-
     const confirmation: Confirmation = {
-      id: newConfirmationRef.key as string,
+      id: voteKey,
       reportId,
       userId,
       isConfirmed: false,
       createdAt: now,
     };
 
-    await newConfirmationRef.set(confirmation);
-
+    await voteRef.set(confirmation);
     await reportRef.child("rejections").set(ServerValue.increment(1));
 
     logger.info("Rechazo registrado", {reportId, userId});

@@ -71,3 +71,10 @@ node_modules/
 
 # Variables de entorno
 .env
+
+# Build output
+dist/
+
+# Shared lockfile (monorepo internal)
+shared/yarn.lock
+shared/node_modules/

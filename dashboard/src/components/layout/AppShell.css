@@ -15,12 +15,8 @@
   width: var(--app-shell-sidebar-width);
   height: 100dvh;
   padding: 1.5rem 1rem;
-  background: linear-gradient(
-    180deg,
-    var(--color-sidebar) 0%,
-    var(--Presidencia-700) 55%,
-    var(--color-sidebar-deep) 100%
-  );
+  background: linear-gradient(180deg, var(--color-sidebar) 0%, var(--color-sidebar-deep) 100%);
+  box-shadow: 12px 0 32px var(--color-sidebar-shadow);
   color: var(--color-on-primary);
   overflow: hidden;
 }
@@ -29,8 +25,9 @@
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  padding: 0 0.5rem;
+  padding: 0.25rem 0.5rem 0.5rem;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--color-sidebar-border);
 }
 
 .app-shell__brand-logo {
@@ -63,6 +60,9 @@
 }
 
 .app-shell__nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
   color: var(--color-on-primary);
@@ -72,62 +72,243 @@
 }
 
 .app-shell__nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-sidebar-hover);
   color: var(--color-on-primary);
 }
 
 .app-shell__nav-link--active {
-  background: var(--Primarios-Guinda-500);
+  background: var(--color-sidebar-active);
   font-weight: 600;
   color: var(--color-on-primary);
 }
 
-.app-shell__footer {
+.app-shell__nav-icon {
+  flex-shrink: 0;
+}
+
+.app-shell__nav-link--settings {
   flex-shrink: 0;
   margin-top: auto;
-  padding: 0 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  padding-top: 1rem;
 }
 
-.app-shell__user {
-  margin: 0;
-  font-size: 0.8rem;
-  opacity: 0.92;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.app-shell__sidebar-footer {
+  flex-shrink: 0;
+  padding: 0.6rem 0.5rem 0;
+  margin-top: 0;
+  border-top: 1px solid var(--color-sidebar-border);
+  font-size: 0.72rem;
+  opacity: 0.8;
 }
 
-.app-shell__sign-out {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.app-shell__sign-out:hover {
-  background: rgba(255, 255, 255, 0.1);
+.app-shell__sidebar-footer p {
+  margin: 0.1rem 0;
 }
 
 .app-shell__content {
   margin-left: var(--app-shell-sidebar-width);
   height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.app-shell__header {
+  position: relative;
+  z-index: 1200;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--color-surface);
+}
+
+.app-shell__header h1 {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-size: 1.3rem;
+}
+
+.app-shell__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.app-shell__notifications {
+  position: relative;
+  z-index: 1201;
+}
+
+.app-shell__notification-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.app-shell__notification-btn:hover {
+  border-color: var(--Primarios-Guinda-500);
+  color: var(--Text-Text-primary-hover);
+}
+
+.app-shell__notification-dot {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.25rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #e11d48;
+}
+
+.app-shell__notification-panel {
+  position: absolute;
+  right: 0;
+  top: 2.8rem;
+  width: 320px;
+  background: var(--color-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(22, 26, 29, 0.12);
+  padding: 0.75rem;
+  z-index: 1202;
+}
+
+.app-shell__notification-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.app-shell__notification-title {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-weight: 600;
+}
+
+.app-shell__notification-clear {
+  border: none;
+  background: transparent;
+  color: var(--Text-Text-primary-hover);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.app-shell__notification-clear:hover {
+  text-decoration: underline;
+}
+
+.app-shell__notification-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.app-shell__notification-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.app-shell__notification-panel li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--color-text-strong);
+  padding: 0.55rem;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.app-shell__notification-panel li.is-unread {
+  border-left: 3px solid var(--Primarios-Guinda-500);
+}
+
+.app-shell__notification-panel li span {
+  flex: 1;
+}
+
+.app-shell__notification-dismiss {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.app-shell__notification-dismiss:hover {
+  color: var(--Text-Text-primary-hover);
+}
+
+.app-shell__profile {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 260px;
+}
+
+.app-shell__avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  color: var(--color-on-primary);
+  background: var(--Primarios-Guinda-600);
+}
+
+.app-shell__avatar-img {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.app-shell__main {
+  height: calc(100dvh - 72px);
   overflow-x: hidden;
   overflow-y: auto;
-  background: var(--bg);
+  padding: 1.5rem 1.75rem 3rem;
   -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 768px) {
   .app-shell {
-    --app-shell-sidebar-width: 220px;
+    --app-shell-sidebar-width: 200px;
+  }
+
+  .app-shell__header {
+    padding: 0 1rem;
+  }
+
+  .app-shell__main {
+    padding-inline: 1rem;
+  }
+
+  .app-shell__profile p {
+    display: none;
+  }
+
+  .app-shell__notification-panel {
+    width: 280px;
   }
 }

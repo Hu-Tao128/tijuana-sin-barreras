@@ -2,70 +2,135 @@ import {onCall} from "firebase-functions/v2/https";
 import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
-import type {Report} from "../types/Report";
+import {bboxCoveringPrefixes} from "../middleware/geohash";
+import type {Report} from "@tijuanasinbarreras/shared";
 
-interface ZoneCount {
-  zone: string;
-  count: number;
+const CLUSTER_RADIUS_M = 250;
+const GEO_QUERY_PRECISION = 5;
+
+interface HeatPoint {
+  lat: number;
+  lng: number;
+  weight: number;
 }
 
-function getZoneName(latitude: number, longitude: number): string {
-  const zones: Array<{
-    name: string;
-    latMin: number;
-    latMax: number;
-    lngMin: number;
-    lngMax: number;
-  }> = [
-    {
-      name: "Zona Río",
-      latMin: 32.5100,
-      latMax: 32.5300,
-      lngMin: -117.0200,
-      lngMax: -116.9900,
-    },
-    {
-      name: "Centro",
-      latMin: 32.5200,
-      latMax: 32.5350,
-      lngMin: -117.0450,
-      lngMax: -117.0200,
-    },
-    {
-      name: "Otay",
-      latMin: 32.4900,
-      latMax: 32.5100,
-      lngMin: -116.9400,
-      lngMax: -116.9100,
-    },
-    {
-      name: "Playas de Tijuana",
-      latMin: 32.5200,
-      latMax: 32.5450,
-      lngMin: -117.1200,
-      lngMax: -117.0900,
-    },
-    {
-      name: "La Mesa",
-      latMin: 32.5000,
-      latMax: 32.5150,
-      lngMin: -116.9900,
-      lngMax: -116.9600,
-    },
-  ];
+function clusterReports(reports: Report[]): HeatPoint[] {
+  const clusters: HeatPoint[] = [];
+  const assigned = new Set<number>();
 
-  for (const zone of zones) {
-    if (
-      latitude >= zone.latMin &&
-      latitude <= zone.latMax &&
-      longitude >= zone.lngMin &&
-      longitude <= zone.lngMax
-    ) {
-      return zone.name;
+  for (let i = 0; i < reports.length; i++) {
+    if (assigned.has(i)) continue;
+
+    const report = reports[i];
+    let clusterLat = report.latitude;
+    let clusterLng = report.longitude;
+    const clusterIndices = [i];
+    assigned.add(i);
+
+    for (let j = i + 1; j < reports.length; j++) {
+      if (assigned.has(j)) continue;
+
+      const other = reports[j];
+      const dLat = (other.latitude - clusterLat) * 111320;
+      const dLng =
+        (other.longitude - clusterLng) *
+        111320 *
+        Math.cos((clusterLat * Math.PI) / 180);
+      const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+
+      if (dist <= CLUSTER_RADIUS_M) {
+        const nextCount = clusterIndices.length + 1;
+        clusterLat =
+          (clusterLat * clusterIndices.length + other.latitude) / nextCount;
+        clusterLng =
+          (clusterLng * clusterIndices.length + other.longitude) / nextCount;
+        clusterIndices.push(j);
+        assigned.add(j);
+      }
     }
+
+    const count = clusterIndices.length;
+    const totalSeverity = clusterIndices.reduce(
+      (sum, index) => sum + reports[index].severity,
+      0
+    );
+    const avgSeverity = totalSeverity / count;
+    const weight = count * (avgSeverity / 5);
+
+    clusters.push({
+      lat: Math.round(clusterLat * 1e6) / 1e6,
+      lng: Math.round(clusterLng * 1e6) / 1e6,
+      weight: Math.round(weight * 100) / 100,
+    });
   }
 
-  return "Otra zona";
+  return clusters.sort((a, b) => b.weight - a.weight);
+}
+
+interface BoundsInput {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+async function loadReportsByBounds(
+  db: ReturnType<typeof getDatabase>,
+  bounds?: BoundsInput
+): Promise<Report[]> {
+  if (!bounds) {
+    const snapshot = await db.ref("reports").once("value");
+    const reports: Report[] = [];
+    snapshot.forEach((child) => {
+      const report = child.val() as Report;
+      if (report.status !== "archived") {
+        reports.push(report);
+      }
+    });
+    return reports;
+  }
+
+  const prefixes = bboxCoveringPrefixes(
+    {north: bounds.north, south: bounds.south, east: bounds.east, west: bounds.west},
+    GEO_QUERY_PRECISION
+  );
+
+  if (prefixes.length === 0 || prefixes.length > 15) {
+    const snapshot = await db.ref("reports").once("value");
+    const reports: Report[] = [];
+    snapshot.forEach((child) => {
+      const report = child.val() as Report;
+      if (report.status !== "archived") {
+        reports.push(report);
+      }
+    });
+    return reports;
+  }
+
+  const reportsMap = new Map<string, Report>();
+  const reportsRef = db.ref("reports");
+
+  for (const prefix of prefixes) {
+    const snapshot = await reportsRef
+      .orderByChild("geohash")
+      .startAt(prefix)
+      .endAt(prefix + "\uf8ff")
+      .once("value");
+
+    snapshot.forEach((child) => {
+      const report = child.val() as Report;
+      if (report.status !== "archived" && !reportsMap.has(report.id)) {
+        reportsMap.set(report.id, report);
+      }
+    });
+  }
+
+  return [...reportsMap.values()].filter((r) =>
+    r.latitude >= bounds.south &&
+    r.latitude <= bounds.north &&
+    r.longitude >= bounds.west &&
+    r.longitude <= bounds.east
+  );
 }
 
 export const generateHeatmap = onCall(
@@ -73,25 +138,19 @@ export const generateHeatmap = onCall(
   async (request) => {
     await verifyUser(request);
 
+    const bounds = request.data as BoundsInput | undefined;
+
     const db = getDatabase();
-    const reportsRef = db.ref("reports");
-    const snapshot = await reportsRef.once("value");
+    const activeReports = await loadReportsByBounds(db, bounds);
 
-    const zoneCounts: Record<string, number> = {};
+    const points = clusterReports(activeReports);
 
-    snapshot.forEach((child) => {
-      const report = child.val() as Report;
-      const zone = getZoneName(report.latitude, report.longitude);
-
-      zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
+    logger.info("Heatmap generado por coordenadas", {
+      totalReports: activeReports.length,
+      clusters: points.length,
+      hasBounds: !!bounds,
     });
 
-    const heatmap: ZoneCount[] = Object.entries(zoneCounts)
-      .map(([zone, count]) => ({zone, count}))
-      .sort((a, b) => b.count - a.count);
-
-    logger.info("Mapa de calor generado", {zones: heatmap.length});
-
-    return {heatmap};
+    return {heatmap: points};
   }
 );

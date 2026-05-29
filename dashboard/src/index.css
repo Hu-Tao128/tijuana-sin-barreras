@@ -29,6 +29,18 @@
   --color-sidebar: var(--Background-Background-primary-600);
   --color-sidebar-deep: var(--Presidencia-900);
   --color-on-primary: var(--Neutro-Neutro-100);
+  --color-sidebar-border: rgba(255, 255, 255, 0.2);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.1);
+  --color-sidebar-active: var(--Primarios-Guinda-500);
+  --color-sidebar-shadow: rgba(0, 0, 0, 0.24);
+  --color-info-bg: #e7eeff;
+  --color-info-text: #2563eb;
+  --color-success-bg: #dcfce7;
+  --color-success-text: #166534;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #b45309;
+  --color-danger-bg: #fee2e2;
+  --color-danger-text: #9b2247;
 
   /* Compatibilidad con componentes existentes */
   --text: var(--color-text);
@@ -42,6 +54,8 @@
   --shadow: 0 1px 4px rgba(22, 26, 29, 0.08);
 
   --sidebar-width: 260px;
+
+  color-scheme: light;
 
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
   line-height: 1.5;
@@ -93,4 +107,74 @@ code {
   min-height: 100vh;
   color: var(--text);
   background: var(--bg);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --Neutro-Neutro-100: #1e1e24;
+  --Neutro-Neutro-300: #121216;
+  --Neutro-Neutro-400: #2e2e36;
+  --Neutro-Neutro-600: #a8a8b3;
+  --Neutro-Neutro-700: #d4d4dc;
+  --Neutro-Neutro-800: #f0f0f5;
+
+  --color-bg: var(--Neutro-Neutro-300);
+  --color-surface: var(--Neutro-Neutro-100);
+  --color-border: var(--Neutro-Neutro-400);
+  --color-text: var(--Neutro-Neutro-600);
+  --color-text-strong: var(--Neutro-Neutro-700);
+  --color-text-heading: var(--Neutro-Neutro-800);
+  --Text-Text-primary-enabled: var(--color-text-heading);
+  --Text-Text-primary-hover: #d986a6;
+  --Background-Background-primary-600: #6d1838;
+  --color-primary: var(--Text-Text-primary-enabled);
+  --color-primary-hover: var(--Text-Text-primary-hover);
+  --color-sidebar: #611232;
+  --color-sidebar-deep: #2f0919;
+  --color-sidebar-border: rgba(255, 255, 255, 0.14);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.1);
+  --color-sidebar-active: color-mix(in srgb, var(--Primarios-Guinda-500) 78%, white 22%);
+  --color-sidebar-shadow: rgba(0, 0, 0, 0.4);
+  --color-info-bg: #1b2945;
+  --color-info-text: #93c5fd;
+  --color-success-bg: #153322;
+  --color-success-text: #86efac;
+  --color-warning-bg: #3d2e12;
+  --color-warning-text: #fcd34d;
+  --color-danger-bg: #3a1520;
+  --color-danger-text: #f5a8bc;
+
+  --code-bg: #2a2a32;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .route-planner__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+[data-theme='dark'] .route-planner__chip--alto {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+[data-theme='dark'] .route-planner__chip--medio {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+[data-theme='dark'] .route-planner__chip--bajo {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+[data-theme='dark'] .route-planner__basis--prelim {
+  background: #2a2a32;
+  color: var(--color-text);
+}
+
+[data-theme='dark'] .login-card__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }

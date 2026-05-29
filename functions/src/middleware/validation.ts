@@ -1,19 +1,19 @@
 import {HttpsError} from "firebase-functions/v2/https";
-import {Report} from "../types/Report";
-import {BarrierType} from "../types/BarrierType";
+import {BarrierType} from "@tijuanasinbarreras/shared";
+import type {Report} from "@tijuanasinbarreras/shared";
 
 const VALID_BARRIER_TYPES = Object.values(BarrierType);
 
 export function validateReport(report: Partial<Report>): asserts report is Report {
   const errors: string[] = [];
 
-  if (!report.latitude || typeof report.latitude !== "number") {
+  if (report.latitude === undefined || typeof report.latitude !== "number") {
     errors.push("Latitud es requerida y debe ser un número.");
   } else if (report.latitude < -90 || report.latitude > 90) {
     errors.push("Latitud debe estar entre -90 y 90.");
   }
 
-  if (!report.longitude || typeof report.longitude !== "number") {
+  if (report.longitude === undefined || typeof report.longitude !== "number") {
     errors.push("Longitud es requerida y debe ser un número.");
   } else if (report.longitude < -180 || report.longitude > 180) {
     errors.push("Longitud debe estar entre -180 y 180.");

@@ -4,26 +4,14 @@ import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
-import {Role} from "../types/Role";
-import {ReportStatus} from "../types/ReportStatus";
-import type {Report} from "../types/Report";
-
-interface DashboardStats {
-  totalReports: number;
-  verifiedReports: number;
-  pendingReports: number;
-  rejectedReports: number;
-  archivedReports: number;
-  totalUsers: number;
-  reportsByType: Record<string, number>;
-  recentReports: Report[];
-}
+import {Role, ReportStatus} from "@tijuanasinbarreras/shared";
+import type {Report, DashboardStats} from "@tijuanasinbarreras/shared";
 
 export const getDashboardStats = onCall(
   {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
-    await requireRole(request, Role.CITIZEN);
+    await requireRole(request, Role.MODERATOR);
 
     const db = getDatabase();
     const firestore = getFirestore();

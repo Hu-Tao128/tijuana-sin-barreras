@@ -1,4 +1,12 @@
-import {Role} from "./Role";
+import {Role} from "./Role.js";
+import {MobilityProfile} from "./MobilityProfile.js";
+import {VisionProfile} from "./VisionProfile.js";
+import {Language} from "./Language.js";
+
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+}
 
 export interface User {
   uid: string;
@@ -11,21 +19,37 @@ export interface User {
 
   photoURL?: string;
 
+  emailVerified?: boolean;
+
+  disabled?: boolean;
+
   edad?: number;
 
   role: Role;
 
   isActive: boolean;
 
-  usaSillaDeRuedas?: boolean;
+  mobilityProfile?: MobilityProfile;
 
-  usaBaston?: boolean;
+  maxWalkingMeters?: number;
 
-  problemasVision?: boolean;
+  canClimbStairs?: boolean;
 
-  necesitaPerroGuia?: boolean;
+  maxStairSteps?: number;
 
-  necesitaGuia?: boolean;
+  visionProfile?: VisionProfile;
+
+  transportModes?: string[];
+
+  needsLowNoise?: boolean;
+
+  emergencyContact?: EmergencyContact;
+
+  preferredLanguage?: Language;
+
+  reportCount: number;
+
+  verifiedReportCount: number;
 
   createdAt: number;
 

@@ -1,7 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-
+    
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+  
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -9,8 +12,13 @@
       android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="false"
       android:theme="@style/AppTheme"
-      android:usesCleartextTraffic="${usesCleartextTraffic}"
+      android:usesCleartextTraffic="true"
       android:supportsRtl="true">
+
+      <meta-data
+          android:name="com.google.android.geo.API_KEY"
+          android:value="AIzaSyAOt-JvUJiga5_KTNlJ78gNCzohFC7BlOY"/>
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"
@@ -18,10 +26,13 @@
         android:launchMode="singleTask"
         android:windowSoftInputMode="adjustResize"
         android:exported="true">
+
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+
       </activity>
     </application>
+
 </manifest>

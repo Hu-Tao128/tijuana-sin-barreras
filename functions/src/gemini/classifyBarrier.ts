@@ -2,7 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {GoogleGenAI} from "@google/genai";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
-import {BarrierType} from "../types/BarrierType";
+import {BarrierType} from "@tijuanasinbarreras/shared";
 
 const VALID_TYPES = Object.values(BarrierType);
 

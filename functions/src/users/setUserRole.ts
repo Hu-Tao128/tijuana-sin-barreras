@@ -4,7 +4,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
 import {requireRole} from "../middleware/roles";
-import {Role} from "../types/Role";
+import {Role} from "@tijuanasinbarreras/shared";
 
 export const setUserRole = onCall(
   {maxInstances: 10},
