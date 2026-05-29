@@ -13,9 +13,10 @@ const PLACEHOLDER_DATA = [
   { colonia: 'Zona Río', reportes: 28 },
   { colonia: 'Otay', reportes: 19 },
   { colonia: 'La Mesa', reportes: 15 },
+  { colonia: 'Playas', reportes: 11 },
 ]
 
-export function StatsOverviewChart() {
+export function ZonesBarChart() {
   return (
     <div className="chart-container">
       <ResponsiveContainer width="100%" height={280}>
