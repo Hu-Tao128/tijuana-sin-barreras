@@ -17,3 +17,10 @@ export {
   setReportStatus,
   type NewReportInput,
 } from './reports'
+export {
+  analyzeRouteAccessibility,
+  analyzeRouteWithImages,
+  type RouteAccessibilityReport,
+  type RouteControlPoint,
+} from './gemini'
+export { findStreetImage, type StreetImage } from './mapillary'

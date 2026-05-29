@@ -1,15 +1,20 @@
-import { TijuanaMap } from '../../maps'
+import { useEffect, useState } from 'react'
+import { ReportsHeatmap } from '../../maps'
+import { subscribeToReports } from '../../services'
+import type { Report } from '../../types'
 import '../../App.css'
 
 export function Mapa() {
+  const [reports, setReports] = useState<Report[]>([])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToReports((data) => setReports(data))
+    return unsubscribe
+  }, [])
+
   return (
     <article className="dashboard-card dashboard-card--wide">
-      {/* Sección de leyendas: preparada para describir los elementos del mapa.
-          Pendiente de definir los íconos/colores y su significado. */}
-      <div className="map-legend" aria-label="Leyendas del mapa">
-        {/* TODO: agregar leyendas (colores, marcadores, niveles de severidad, etc.) */}
-      </div>
-      <TijuanaMap />
+      <ReportsHeatmap reports={reports} />
     </article>
   )
 }

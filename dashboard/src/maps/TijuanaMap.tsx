@@ -1,7 +1,11 @@
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api'
 import { useMemo } from 'react'
-
-const TIJUANA_CENTER = { lat: 32.5149, lng: -117.0382 }
+import {
+  GOOGLE_MAPS_ID,
+  GOOGLE_MAPS_LIBRARIES,
+  GOOGLE_MAPS_VERSION,
+  TIJUANA_CENTER,
+} from './constants'
 
 const mapContainerStyle = {
   width: '100%',
@@ -30,8 +34,10 @@ export function TijuanaMap({ markers }: TijuanaMapProps) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
   const { isLoaded, loadError } = useJsApiLoader({
-    id: 'tsb-google-maps',
+    id: GOOGLE_MAPS_ID,
     googleMapsApiKey: apiKey ?? '',
+    libraries: GOOGLE_MAPS_LIBRARIES,
+    version: GOOGLE_MAPS_VERSION,
   })
 
   const resolvedMarkers = useMemo(

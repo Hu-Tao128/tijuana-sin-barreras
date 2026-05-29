@@ -1,2 +1,2 @@
-export { ZonesBarChart } from './ZonesBarChart'
-export { ReportsTrendChart } from './ReportsTrendChart'
+export { ZonesBarChart, type ZoneDatum } from './ZonesBarChart'
+export { ReportsTrendChart, type TrendDatum } from './ReportsTrendChart'

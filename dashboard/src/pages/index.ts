@@ -1,5 +1,6 @@
 export { Home } from './Home'
 export { Login } from './Login'
 export { Mapa } from './Mapa'
+export { Rutas } from './Rutas'
 export { Reports } from './Reports'
 export { Configuracion } from './Users'
