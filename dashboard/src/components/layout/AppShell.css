@@ -116,6 +116,8 @@
 }
 
 .app-shell__header {
+  position: relative;
+  z-index: 1200;
   height: 72px;
   display: flex;
   align-items: center;
@@ -139,6 +141,7 @@
 
 .app-shell__notifications {
   position: relative;
+  z-index: 1201;
 }
 
 .app-shell__notification-btn {
@@ -180,7 +183,7 @@
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(22, 26, 29, 0.12);
   padding: 0.75rem;
-  z-index: 10;
+  z-index: 1202;
 }
 
 .app-shell__notification-head {

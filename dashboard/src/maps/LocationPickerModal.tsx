@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CircleMarker, MapContainer, TileLayer, useMapEvents } from 'react-leaflet'
 import { X } from 'lucide-react'
+import { useAppSettings } from '../contexts/AppSettingsContext'
 import 'leaflet/dist/leaflet.css'
 import './LocationPickerModal.css'
 
@@ -24,26 +25,27 @@ type LocationPickerModalProps = {
 }
 
 export function LocationPickerModal({ initial, onConfirm, onClose }: LocationPickerModalProps) {
+  const { t } = useAppSettings()
   const [selected, setSelected] = useState<LatLng | null>(initial ?? null)
   const center = initial ? [initial.lat, initial.lng] : TIJUANA_CENTER
 
   return (
-    <div className="location-picker" role="dialog" aria-label="Seleccionar ubicación" aria-modal="true">
+    <div className="location-picker" role="dialog" aria-label={t('locationPicker.title')} aria-modal="true">
       <div className="location-picker__backdrop" onClick={onClose} />
       <div className="location-picker__dialog">
         <div className="location-picker__head">
-          <p className="location-picker__title">Elige la ubicación en el mapa</p>
+          <p className="location-picker__title">{t('locationPicker.title')}</p>
           <button
             type="button"
             className="location-picker__close"
             onClick={onClose}
-            aria-label="Cerrar"
+            aria-label={t('locationPicker.close')}
           >
             <X size={18} aria-hidden="true" />
           </button>
         </div>
 
-        <p className="location-picker__hint">Haz clic en el mapa para colocar el punto del reporte.</p>
+        <p className="location-picker__hint">{t('locationPicker.hint')}</p>
 
         <MapContainer center={center as [number, number]} zoom={13} className="location-picker__map">
           <TileLayer
@@ -64,11 +66,11 @@ export function LocationPickerModal({ initial, onConfirm, onClose }: LocationPic
           <span className="location-picker__coords">
             {selected
               ? `${selected.lat.toFixed(6)}, ${selected.lng.toFixed(6)}`
-              : 'Sin ubicación seleccionada'}
+              : t('locationPicker.none')}
           </span>
           <div className="location-picker__actions">
             <button type="button" className="secondary-btn" onClick={onClose}>
-              Cancelar
+              {t('locationPicker.cancel')}
             </button>
             <button
               type="button"
@@ -76,7 +78,7 @@ export function LocationPickerModal({ initial, onConfirm, onClose }: LocationPic
               disabled={!selected}
               onClick={() => selected && onConfirm(selected)}
             >
-              Usar esta ubicación
+              {t('locationPicker.confirm')}
             </button>
           </div>
         </div>

@@ -10,30 +10,32 @@ import {
   X,
 } from 'lucide-react'
 import { brandLogo } from '../../brand'
+import { useAppSettings } from '../../contexts/AppSettingsContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
 import './AppShell.css'
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true },
-  { to: '/mapa', label: 'Mapa', icon: MapIcon, end: false },
-  { to: '/rutas', label: 'Rutas', icon: RouteIcon, end: false },
-  { to: '/reportes', label: 'Reportes', icon: ClipboardList, end: false },
+const NAV_PATHS = [
+  { to: '/', key: 'nav.home', icon: LayoutDashboard, end: true },
+  { to: '/mapa', key: 'nav.map', icon: MapIcon, end: false },
+  { to: '/rutas', key: 'nav.routes', icon: RouteIcon, end: false },
+  { to: '/reportes', key: 'nav.reports', icon: ClipboardList, end: false },
 ] as const
 
-const SETTINGS_ITEM = { to: '/configuracion', label: 'Configuración' } as const
+const SETTINGS_PATH = '/configuracion'
 
 export function AppShell() {
   const { user } = useAuth()
   const { photoUrl } = useProfile()
+  const { t } = useAppSettings()
   const location = useLocation()
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
   const [notifications, setNotifications] = useState([
-    { id: 'n1', text: 'Hay 3 reportes pendientes de revisión manual.', unread: true },
-    { id: 'n2', text: 'Se detectó un pico de incidencias en Zona Centro.', unread: true },
-    { id: 'n3', text: 'Exportación semanal disponible para descarga.', unread: false },
+    { id: 'n1', textKey: 'notifications.n1', unread: true },
+    { id: 'n2', textKey: 'notifications.n2', unread: true },
+    { id: 'n3', textKey: 'notifications.n3', unread: false },
   ])
 
   function dismissNotification(id: string) {
@@ -45,14 +47,14 @@ export function AppShell() {
   }
 
   const pageTitle = useMemo(() => {
-    if (location.pathname.startsWith(SETTINGS_ITEM.to)) {
-      return SETTINGS_ITEM.label
+    if (location.pathname.startsWith(SETTINGS_PATH)) {
+      return t('nav.settings')
     }
-    const match = NAV_ITEMS.find((item) =>
+    const match = NAV_PATHS.find((item) =>
       item.end ? location.pathname === item.to : location.pathname.startsWith(item.to),
     )
-    return match?.label ?? 'Panel de Control'
-  }, [location.pathname])
+    return match ? t(match.key) : t('brandSubtitle')
+  }, [location.pathname, t])
 
   const unreadCount = notifications.filter((item) => item.unread).length
 
@@ -79,12 +81,12 @@ export function AppShell() {
           />
           <div>
             <p className="app-shell__brand-title">Tijuana Sin Barreras</p>
-            <p className="app-shell__brand-subtitle">Panel de Control</p>
+            <p className="app-shell__brand-subtitle">{t('brandSubtitle')}</p>
           </div>
         </div>
 
         <nav className="app-shell__nav">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+          {NAV_PATHS.map(({ to, key, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -94,13 +96,13 @@ export function AppShell() {
               }
             >
               <Icon className="app-shell__nav-icon" size={18} aria-hidden="true" />
-              {label}
+              {t(key)}
             </NavLink>
           ))}
         </nav>
 
         <NavLink
-          to={SETTINGS_ITEM.to}
+          to={SETTINGS_PATH}
           className={({ isActive }) =>
             `app-shell__nav-link app-shell__nav-link--settings${
               isActive ? ' app-shell__nav-link--active' : ''
@@ -108,12 +110,12 @@ export function AppShell() {
           }
         >
           <Settings className="app-shell__nav-icon" size={18} aria-hidden="true" />
-          {SETTINGS_ITEM.label}
+          {t('nav.settings')}
         </NavLink>
 
         <footer className="app-shell__sidebar-footer">
-          <p>Gobierno de Tijuana</p>
-          <p>2026 - Hackfox</p>
+          <p>{t('footer.gov')}</p>
+          <p>{t('footer.hackfox')}</p>
         </footer>
       </aside>
 
@@ -127,7 +129,7 @@ export function AppShell() {
                 className="app-shell__notification-btn"
                 onClick={() => setIsNotificationsOpen((prev) => !prev)}
                 aria-expanded={isNotificationsOpen}
-                aria-label="Abrir notificaciones"
+                aria-label={t('notifications.open')}
               >
                 <Bell size={20} aria-hidden="true" />
                 {unreadCount > 0 && (
@@ -135,30 +137,34 @@ export function AppShell() {
                 )}
               </button>
               {isNotificationsOpen && (
-                <div className="app-shell__notification-panel" role="dialog" aria-label="Notificaciones">
+                <div
+                  className="app-shell__notification-panel"
+                  role="dialog"
+                  aria-label={t('notifications.title')}
+                >
                   <div className="app-shell__notification-head">
-                    <p className="app-shell__notification-title">Notificaciones</p>
+                    <p className="app-shell__notification-title">{t('notifications.title')}</p>
                     {notifications.length > 0 && (
                       <button
                         type="button"
                         className="app-shell__notification-clear"
                         onClick={clearAllNotifications}
                       >
-                        Limpiar todo
+                        {t('notifications.clearAll')}
                       </button>
                     )}
                   </div>
                   {notifications.length === 0 ? (
-                    <p className="app-shell__notification-empty">No hay notificaciones.</p>
+                    <p className="app-shell__notification-empty">{t('notifications.empty')}</p>
                   ) : (
                     <ul>
                       {notifications.map((item) => (
                         <li key={item.id} className={item.unread ? 'is-unread' : ''}>
-                          <span>{item.text}</span>
+                          <span>{t(item.textKey)}</span>
                           <button
                             type="button"
                             className="app-shell__notification-dismiss"
-                            aria-label="Eliminar notificación"
+                            aria-label={t('notifications.dismiss')}
                             onClick={() => dismissNotification(item.id)}
                           >
                             <X size={14} aria-hidden="true" />
@@ -172,7 +178,7 @@ export function AppShell() {
             </div>
             <div className="app-shell__profile" title={user?.email ?? undefined}>
               {photoUrl ? (
-                <img className="app-shell__avatar-img" src={photoUrl} alt="Foto de perfil" />
+                <img className="app-shell__avatar-img" src={photoUrl} alt={t('profilePhoto')} />
               ) : (
                 <span className="app-shell__avatar" aria-hidden="true">
                   {user?.displayName?.charAt(0).toUpperCase() ?? 'F'}

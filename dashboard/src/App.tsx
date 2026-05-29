@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
 import { AuthProvider } from './contexts/AuthContext'
+import { AppSettingsProvider } from './contexts/AppSettingsContext'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { Configuracion, Home, Login, Mapa, Reports, Rutas } from './pages'
 import './App.css'
@@ -10,7 +11,8 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ProfileProvider>
+        <AppSettingsProvider>
+          <ProfileProvider>
           <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<ProtectedRoute />}>
@@ -24,7 +26,8 @@ function App() {
           </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </ProfileProvider>
+          </ProfileProvider>
+        </AppSettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   )

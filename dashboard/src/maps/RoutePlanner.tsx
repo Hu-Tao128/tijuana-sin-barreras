@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet'
 import type { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useAppSettings } from '../contexts/AppSettingsContext'
 import { analyzeRouteAccessibility, type RouteAccessibilityReport } from '../services/gemini'
 import { PhotonAutocomplete, type PlaceResult } from './PhotonAutocomplete'
 import './RoutePlanner.css'
@@ -50,12 +51,6 @@ async function fetchWalkingRoute(
   return { positions, distanceMeters: route.distance }
 }
 
-function scoreMeta(score: number): { label: string; tone: 'alto' | 'medio' | 'bajo' } {
-  if (score >= 75) return { label: 'Buena', tone: 'bajo' }
-  if (score >= 50) return { label: 'Media', tone: 'medio' }
-  return { label: 'Baja', tone: 'alto' }
-}
-
 function RouteReportCard({
   report,
   distanceMeters,
@@ -63,7 +58,13 @@ function RouteReportCard({
   report: RouteAccessibilityReport
   distanceMeters: number
 }) {
-  const meta = scoreMeta(report.scoreAccesibilidad)
+  const { t } = useAppSettings()
+  const meta =
+    report.scoreAccesibilidad >= 75
+      ? { label: t('routes.good'), tone: 'bajo' as const }
+      : report.scoreAccesibilidad >= 50
+        ? { label: t('routes.medium'), tone: 'medio' as const }
+        : { label: t('routes.low'), tone: 'alto' as const }
   const counts = { alto: 0, medio: 0, bajo: 0 }
   for (const point of report.puntosControl) {
     counts[point.riesgo] = (counts[point.riesgo] ?? 0) + 1
@@ -71,9 +72,7 @@ function RouteReportCard({
 
   return (
     <div className="route-planner__report">
-      <div className="route-planner__basis route-planner__basis--prelim">
-        Valoración con IA · estimación preliminar
-      </div>
+      <div className="route-planner__basis route-planner__basis--prelim">{t('routes.aiRating')}</div>
 
       <div className="route-planner__report-head">
         <div className={`route-planner__score route-planner__score--${meta.tone}`}>
@@ -81,7 +80,9 @@ function RouteReportCard({
           <small>/100</small>
         </div>
         <div className="route-planner__score-meta">
-          <strong>Accesibilidad {meta.label}</strong>
+          <strong>
+            {t('routes.accessibility')} {meta.label}
+          </strong>
           <span>
             {(distanceMeters / 1000).toFixed(2)} km · {report.puntosControl.length} puntos
           </span>
@@ -89,16 +90,24 @@ function RouteReportCard({
       </div>
 
       <div className="route-planner__risks">
-        <span className="route-planner__chip route-planner__chip--alto">{counts.alto} alto</span>
-        <span className="route-planner__chip route-planner__chip--medio">{counts.medio} medio</span>
-        <span className="route-planner__chip route-planner__chip--bajo">{counts.bajo} bajo</span>
+        <span className="route-planner__chip route-planner__chip--alto">
+          {counts.alto} {t('routes.riskHigh')}
+        </span>
+        <span className="route-planner__chip route-planner__chip--medio">
+          {counts.medio} {t('routes.riskMed')}
+        </span>
+        <span className="route-planner__chip route-planner__chip--bajo">
+          {counts.bajo} {t('routes.riskLow')}
+        </span>
       </div>
 
       <p className="route-planner__resumen">{report.resumen}</p>
 
       {report.recomendaciones.length > 0 && (
         <details className="route-planner__reco-details">
-          <summary>Recomendaciones ({report.recomendaciones.length})</summary>
+          <summary>
+            {t('routes.recommendations')} ({report.recomendaciones.length})
+          </summary>
           <ul className="route-planner__reco">
             {report.recomendaciones.map((reco, index) => (
               <li key={index}>{reco}</li>
@@ -122,6 +131,7 @@ function FitBounds({ positions }: { positions: [number, number][] | null }) {
 }
 
 export function RoutePlanner() {
+  const { t } = useAppSettings()
   const [origin, setOrigin] = useState<PlaceResult | null>(null)
   const [destination, setDestination] = useState<PlaceResult | null>(null)
   const [positions, setPositions] = useState<[number, number][] | null>(null)
@@ -143,7 +153,7 @@ export function RoutePlanner() {
         if (cancelled) return
         if (!result) {
           setPositions(null)
-          setError('No se pudo calcular la ruta peatonal entre esos puntos.')
+          setError(t('routes.routeError'))
           return
         }
         setPositions(result.positions)
@@ -175,7 +185,7 @@ export function RoutePlanner() {
       const result = await analyzeRouteAccessibility(sampledPoints, distanceMeters)
       setReport(result)
     } catch {
-      setError('No se pudo analizar la ruta con IA. Revisa VITE_GEMINI_API_KEY.')
+      setError(t('routes.aiError'))
     } finally {
       setIsAnalyzing(false)
     }
@@ -184,19 +194,16 @@ export function RoutePlanner() {
   return (
     <div className="route-planner">
       <div className="route-planner__panel">
-        <p className="route-planner__title">Trazado de ruta accesible</p>
+        <p className="route-planner__title">{t('routes.title')}</p>
 
         <label className="route-planner__field">
-          <span>Punto de inicio</span>
-          <PhotonAutocomplete placeholder="Origen (ej. Centro, Tijuana)" onSelect={setOrigin} />
+          <span>{t('routes.origin')}</span>
+          <PhotonAutocomplete placeholder={t('routes.originPh')} onSelect={setOrigin} />
         </label>
 
         <label className="route-planner__field">
-          <span>Punto de destino</span>
-          <PhotonAutocomplete
-            placeholder="Destino (ej. Zona Río, Tijuana)"
-            onSelect={setDestination}
-          />
+          <span>{t('routes.destination')}</span>
+          <PhotonAutocomplete placeholder={t('routes.destPh')} onSelect={setDestination} />
         </label>
 
         {error && <p className="route-planner__error">{error}</p>}
@@ -211,10 +218,10 @@ export function RoutePlanner() {
             {isAnalyzing ? (
               <>
                 <span className="route-planner__spinner" aria-hidden="true" />
-                Analizando con IA…
+                {t('routes.analyzing')}
               </>
             ) : (
-              'Analizar Accesibilidad de Ruta'
+              t('routes.analyze')
             )}
           </button>
         )}
