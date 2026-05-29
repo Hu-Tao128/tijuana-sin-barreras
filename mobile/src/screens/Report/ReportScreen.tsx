@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import { launchCamera } from 'react-native-image-picker';
+import storage from '@react-native-firebase/storage';
+import auth from '@react-native-firebase/auth';
 import Button from '../../components/Button';
 import { createReport } from '../../services/callable-functions';
 import { REPORT_CATEGORIES, SEVERITY_LEVELS, BarrierType } from '../../services/types';
@@ -31,6 +33,7 @@ export default function ReportScreen({ navigation }: any) {
   const [location, setLocation] = useState<GeoCoords | null>(null);
   const [address, setAddress] = useState('Obteniendo ubicación...');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     getCurrentLocation();
@@ -93,6 +96,19 @@ export default function ReportScreen({ navigation }: any) {
     }
   };
 
+  const uploadPhoto = async (uri: string): Promise<string> => {
+    setUploadingPhoto(true);
+    try {
+      const user = auth().currentUser;
+      const userId = user?.uid ?? 'anonymous';
+      const reference = storage().ref(`reports/${userId}/${Date.now()}.jpg`);
+      await reference.putFile(uri);
+      return await reference.getDownloadURL();
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedCategory) {
       Alert.alert('Atención', 'Por favor selecciona una categoría.');
@@ -110,12 +126,19 @@ export default function ReportScreen({ navigation }: any) {
     setSubmitting(true);
 
     try {
+      let photoUrl: string | undefined;
+
+      if (photoUri) {
+        photoUrl = await uploadPhoto(photoUri);
+      }
+
       const result = await createReport({
         type: selectedCategory,
         latitude: location.latitude,
         longitude: location.longitude,
         severity,
         description: description.trim() || undefined,
+        photoUrl,
       });
 
       if (result.success) {
@@ -282,13 +305,13 @@ export default function ReportScreen({ navigation }: any) {
         <View style={styles.buttonSpacing}>
           <Button
             title={
-              submitting
+              submitting || uploadingPhoto
                 ? 'Enviando reporte...'
                 : 'Realizar reporte'
             }
             onPress={handleSubmit}
             variant="primary"
-            isLoading={submitting}
+            isLoading={submitting || uploadingPhoto}
             disabled={!isFormValid}
           />
         </View>
