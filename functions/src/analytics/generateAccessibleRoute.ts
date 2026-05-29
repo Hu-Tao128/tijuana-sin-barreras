@@ -3,6 +3,7 @@ import {getDatabase} from "firebase-admin/database";
 import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {verifyUser, getUserId} from "../middleware/auth";
+import {bboxCoveringPrefixes} from "../middleware/geohash";
 import {AccessibilityPenalty} from "../types/AccessibilityScore";
 import {MobilityProfile} from "../types/MobilityProfile";
 import type {Report} from "../types/Report";
@@ -194,24 +195,50 @@ export const generateAccessibleRoute = onCall(
     };
 
     const db = getDatabase();
-    const reportsSnapshot = await db.ref("reports").once("value");
+    const geoPrefixes = bboxCoveringPrefixes(corridorBounds, 5);
 
-    const nearbyBarriers: Report[] = [];
+    const nearbyBarriersMap = new Map<string, Report>();
+    const reportsRef = db.ref("reports");
 
-    reportsSnapshot.forEach((child) => {
-      const report = child.val() as Report;
+    if (geoPrefixes.length > 0 && geoPrefixes.length <= 15) {
+      for (const prefix of geoPrefixes) {
+        const snap = await reportsRef
+          .orderByChild("geohash")
+          .startAt(prefix)
+          .endAt(prefix + "\uf8ff")
+          .once("value");
 
-      if (report.status === "archived") return;
-
-      if (
-        report.latitude >= corridorBounds.south &&
-        report.latitude <= corridorBounds.north &&
-        report.longitude >= corridorBounds.west &&
-        report.longitude <= corridorBounds.east
-      ) {
-        nearbyBarriers.push(report);
+        snap.forEach((child) => {
+          const report = child.val() as Report;
+          if (report.status === "archived") return;
+          if (
+            report.latitude >= corridorBounds.south &&
+            report.latitude <= corridorBounds.north &&
+            report.longitude >= corridorBounds.west &&
+            report.longitude <= corridorBounds.east &&
+            !nearbyBarriersMap.has(report.id)
+          ) {
+            nearbyBarriersMap.set(report.id, report);
+          }
+        });
       }
-    });
+    } else {
+      const reportsSnapshot = await db.ref("reports").once("value");
+      reportsSnapshot.forEach((child) => {
+        const report = child.val() as Report;
+        if (report.status === "archived") return;
+        if (
+          report.latitude >= corridorBounds.south &&
+          report.latitude <= corridorBounds.north &&
+          report.longitude >= corridorBounds.west &&
+          report.longitude <= corridorBounds.east
+        ) {
+          nearbyBarriersMap.set(report.id, report);
+        }
+      });
+    }
+
+    const nearbyBarriers: Report[] = [...nearbyBarriersMap.values()];
 
     const warningsOnRoute: Report[] = [];
     const barriersInCorridor: Report[] = [];

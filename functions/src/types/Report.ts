@@ -2,6 +2,8 @@ import {BarrierType} from "./BarrierType";
 import {ReportStatus} from "./ReportStatus";
 import {MobilityProfile} from "./MobilityProfile";
 
+export type ArchiveReason = "fixed" | "duplicate" | "invalid" | "other";
+
 export interface Report {
   id: string;
 
@@ -33,5 +35,9 @@ export interface Report {
 
   updatedAt?: number;
 
-  archiveReason?: string;
+  archiveReason?: ArchiveReason;
+
+  geohash?: string;
+
+  resolvedAt?: number;
 }

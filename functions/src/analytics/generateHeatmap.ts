@@ -2,9 +2,11 @@ import {onCall} from "firebase-functions/v2/https";
 import {getDatabase} from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import {verifyUser} from "../middleware/auth";
+import {bboxCoveringPrefixes} from "../middleware/geohash";
 import type {Report} from "../types/Report";
 
 const CLUSTER_RADIUS_M = 250;
+const GEO_QUERY_PRECISION = 5;
 
 interface HeatPoint {
   lat: number;
@@ -22,7 +24,7 @@ function clusterReports(reports: Report[]): HeatPoint[] {
     const report = reports[i];
     let clusterLat = report.latitude;
     let clusterLng = report.longitude;
-    let count = 1;
+    const clusterIndices = [i];
     assigned.add(i);
 
     for (let j = i + 1; j < reports.length; j++) {
@@ -37,27 +39,22 @@ function clusterReports(reports: Report[]): HeatPoint[] {
       const dist = Math.sqrt(dLat * dLat + dLng * dLng);
 
       if (dist <= CLUSTER_RADIUS_M) {
+        const nextCount = clusterIndices.length + 1;
         clusterLat =
-          (clusterLat * count + other.latitude) / (count + 1);
+          (clusterLat * clusterIndices.length + other.latitude) / nextCount;
         clusterLng =
-          (clusterLng * count + other.longitude) / (count + 1);
-        count++;
+          (clusterLng * clusterIndices.length + other.longitude) / nextCount;
+        clusterIndices.push(j);
         assigned.add(j);
       }
     }
 
-    let totalSeverity = 0;
-    let severityCount = 0;
-    let k = i;
-    while (k < reports.length) {
-      if (assigned.has(k)) {
-        totalSeverity += reports[k].severity;
-        severityCount++;
-      }
-      k++;
-    }
-
-    const avgSeverity = severityCount > 0 ? totalSeverity / severityCount : 1;
+    const count = clusterIndices.length;
+    const totalSeverity = clusterIndices.reduce(
+      (sum, index) => sum + reports[index].severity,
+      0
+    );
+    const avgSeverity = totalSeverity / count;
     const weight = count * (avgSeverity / 5);
 
     clusters.push({
@@ -70,28 +67,88 @@ function clusterReports(reports: Report[]): HeatPoint[] {
   return clusters.sort((a, b) => b.weight - a.weight);
 }
 
+interface BoundsInput {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+async function loadReportsByBounds(
+  db: ReturnType<typeof getDatabase>,
+  bounds?: BoundsInput
+): Promise<Report[]> {
+  if (!bounds) {
+    const snapshot = await db.ref("reports").once("value");
+    const reports: Report[] = [];
+    snapshot.forEach((child) => {
+      const report = child.val() as Report;
+      if (report.status !== "archived") {
+        reports.push(report);
+      }
+    });
+    return reports;
+  }
+
+  const prefixes = bboxCoveringPrefixes(
+    {north: bounds.north, south: bounds.south, east: bounds.east, west: bounds.west},
+    GEO_QUERY_PRECISION
+  );
+
+  if (prefixes.length === 0 || prefixes.length > 15) {
+    const snapshot = await db.ref("reports").once("value");
+    const reports: Report[] = [];
+    snapshot.forEach((child) => {
+      const report = child.val() as Report;
+      if (report.status !== "archived") {
+        reports.push(report);
+      }
+    });
+    return reports;
+  }
+
+  const reportsMap = new Map<string, Report>();
+  const reportsRef = db.ref("reports");
+
+  for (const prefix of prefixes) {
+    const snapshot = await reportsRef
+      .orderByChild("geohash")
+      .startAt(prefix)
+      .endAt(prefix + "\uf8ff")
+      .once("value");
+
+    snapshot.forEach((child) => {
+      const report = child.val() as Report;
+      if (report.status !== "archived" && !reportsMap.has(report.id)) {
+        reportsMap.set(report.id, report);
+      }
+    });
+  }
+
+  return [...reportsMap.values()].filter((r) =>
+    r.latitude >= bounds.south &&
+    r.latitude <= bounds.north &&
+    r.longitude >= bounds.west &&
+    r.longitude <= bounds.east
+  );
+}
+
 export const generateHeatmap = onCall(
   {maxInstances: 5},
   async (request) => {
     await verifyUser(request);
 
+    const bounds = request.data as BoundsInput | undefined;
+
     const db = getDatabase();
-    const reportsSnapshot = await db.ref("reports").once("value");
-
-    const activeReports: Report[] = [];
-
-    reportsSnapshot.forEach((child) => {
-      const report = child.val() as Report;
-      if (report.status !== "archived") {
-        activeReports.push(report);
-      }
-    });
+    const activeReports = await loadReportsByBounds(db, bounds);
 
     const points = clusterReports(activeReports);
 
     logger.info("Heatmap generado por coordenadas", {
       totalReports: activeReports.length,
       clusters: points.length,
+      hasBounds: !!bounds,
     });
 
     return {heatmap: points};
