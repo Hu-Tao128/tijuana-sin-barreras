@@ -6,7 +6,14 @@ Nota de vigencia
 Este archivo es un documento de planeación inicial y ya no refleja con precisión todo el estado implementado del backend.
 
 - La fuente operativa actual para endpoints y contratos es `docs/callable-functions.md`.
-- El backend ya incluye `generateAccessibleRoute`, `getReportsInArea`, `generateHeatmap` por coordenadas y `archiveReport` con motivo.
+- El backend ya incluye `generateAccessibleRoute`, `getReportsInArea`, `generateHeatmap` por coordenadas, `archiveReport` con motivo, y `updateStatistics` como trigger interno.
+- **Mejoras recientes (2026-05):**
+  - **Geohash:** indexación espacial para consultas por área sin full scan en `getReportsInArea`, `generateHeatmap` y `generateAccessibleRoute`.
+  - **Votaciones atómicas:** `confirmReport` y `rejectReport` usan clave determinista `{reportId}_{userId}` para evitar votos duplicados por condición de carrera. Permiten cambiar voto.
+  - **Perfil completo:** `getCurrentUserProfile` devuelve datos de Firestore + Auth. `registerUserProfile` usa `request.auth.uid` del servidor y solo acepta campos editables.
+  - **Limpieza Storage:** `deleteMyReport` elimina la foto asociada en Firebase Storage.
+  - **Reglas endurecidas:** Firestore solo lectura desde cliente. RTDB con índices `.indexOn` para `userId`, `geohash`, `status`.
+  - **onUserCreate:** trigger que siembra automáticamente perfil base en Firestore al crear usuario en Auth.
 - No tomes este archivo como inventario exacto de funciones exportadas ni como reflejo exacto de la estructura actual de `functions/` y `shared/`.
 
 Objetivo
@@ -196,7 +203,8 @@ functions/
 │   ├── auth.ts
 │   ├── roles.ts
 │   ├── ratelimit.ts
-│   └── validation.ts
+│   ├── validation.ts
+│   └── geohash.ts
 │
 ├── reports/
 │
