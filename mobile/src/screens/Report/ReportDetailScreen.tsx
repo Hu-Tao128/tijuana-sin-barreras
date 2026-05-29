@@ -136,24 +136,6 @@ export default function ReportDetailScreen({ route, navigation }: any) {
     }
   };
 
-  const handleSendComment = async () => {
-    const text = newComment.trim();
-    if (!text) return;
-
-    setSendingComment(true);
-    try {
-      const result = await addComment({ reportId, text });
-      if (result.success) {
-        setNewComment('');
-        loadComments();
-      }
-    } catch {
-      Alert.alert('Error', 'No se pudo enviar el comentario.');
-    } finally {
-      setSendingComment(false);
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.centered}>
