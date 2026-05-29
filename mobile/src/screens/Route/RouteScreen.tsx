@@ -10,7 +10,7 @@
  * ✅ Visualización en mapa con polylines
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -39,6 +39,7 @@ import {
   getRiskLevelDescription,
 } from '../../services/RouteAnalyzer';
 import { DEFAULT_LOCATION, GOOGLE_ROUTES_API_KEY, GOOGLE_PLACES_API_KEY } from '../../services/constants';
+import { analyzeRouteWithGemini, type AccessibilityReport as GeminiReport } from '../../services/gemini';
 
 const { height } = Dimensions.get('window');
 
@@ -108,6 +109,7 @@ interface MapRegion {
 const RouteSearchModal = ({
   visible,
   onClose,
+  onSearchRoute,
   onSelectOrigin,
   onSelectDestination,
   origin,
@@ -116,6 +118,7 @@ const RouteSearchModal = ({
 }: {
   visible: boolean;
   onClose: () => void;
+  onSearchRoute: () => void;
   onSelectOrigin: (place: Place) => void;
   onSelectDestination: (place: Place) => void;
   origin: Place | null;
@@ -371,8 +374,11 @@ const RouteSearchModal = ({
           )}
         </ScrollView>
 
-        {/* BOTÓN DE CERRAR */}
-        <TouchableOpacity style={modalStyles.closeButton} onPress={onClose}>
+        {/* BOTÓN DE CERRAR / BUSCAR */}
+        <TouchableOpacity
+          style={modalStyles.closeButton}
+          onPress={origin && destination ? onSearchRoute : onClose}
+        >
           <Text style={modalStyles.closeButtonText}>
             {origin && destination ? 'Buscar Ruta' : 'Cerrar'}
           </Text>
@@ -395,7 +401,11 @@ export default function RouteScreen() {
   const [loading, setLoading] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [aiReport, setAiReport] = useState<GeminiReport | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [mapRegion, setMapRegion] = useState<MapRegion>(DEFAULT_LOCATION);
+
+  const cancelRef = useRef(false);
 
   // Cargar reportes de Realtime Database
   useEffect(() => {
@@ -437,6 +447,7 @@ export default function RouteScreen() {
   const calculateOptimalRoute = useCallback(async () => {
     if (!origin || !destination) return;
 
+    cancelRef.current = false;
     setLoading(true);
     try {
       const originCoords = {
@@ -449,12 +460,13 @@ export default function RouteScreen() {
       };
 
       const routeData = await getRoutes(originCoords, destCoords, GOOGLE_ROUTES_API_KEY);
+
+      if (cancelRef.current) return;
       
       if (routeData?.routes?.length) {
         setRoutes(routeData.routes);
         setSelectedRouteIndex(0);
 
-        // Actualizar región del mapa
         setMapRegion({
           latitude: (origin.latitude! + destination.latitude!) / 2,
           longitude: (origin.longitude! + destination.longitude!) / 2,
@@ -462,21 +474,24 @@ export default function RouteScreen() {
           longitudeDelta: 0.05,
         });
 
-        // Analizar la ruta principal contra obstáculos
         const mainRoute = routeData.routes[0];
         const steps: RouteStep[] = mainRoute.legs.flatMap((leg: any) => leg.steps);
         const analysis = analyzeRoute(steps, reports);
-        setAnalysisResult(analysis);
-
-        Alert.alert('✅ Rutas encontradas', `Se encontraron ${routeData.routes.length} ruta(s) disponibles`);
-      } else {
+        if (!cancelRef.current) {
+          setAnalysisResult(analysis);
+          Alert.alert('✅ Rutas encontradas', `Se encontraron ${routeData.routes.length} ruta(s) disponibles`);
+        }
+      } else if (!cancelRef.current) {
         Alert.alert('Error', 'No se encontraron rutas disponibles');
       }
     } catch (error) {
+      if (cancelRef.current) return;
       console.error('Error calculando ruta:', error);
       Alert.alert('Error', 'No se pudo calcular la ruta');
     }
-    setLoading(false);
+    if (!cancelRef.current) {
+      setLoading(false);
+    }
   }, [origin, destination, reports]);
 
   // Buscar ruta más accesible evitando obstáculos
@@ -531,6 +546,40 @@ export default function RouteScreen() {
     }
     setLoading(false);
   }, [origin, destination, analysisResult]);
+
+  const runAIAnalysis = useCallback(async () => {
+    if (!routes.length || !routePolyline.length) return;
+
+    setAiLoading(true);
+    setAiReport(null);
+    try {
+      const routePoints = routePolyline.map((c) => ({
+        latitude: c.latitude,
+        longitude: c.longitude,
+      }));
+
+      const obstacles = analysisResult?.nearbyObstacles || [];
+      const leg = routes[selectedRouteIndex].legs[0];
+      const distanceMeters = leg.distance?.value || 0;
+
+      const report = await analyzeRouteWithGemini(
+        routePoints,
+        obstacles,
+        distanceMeters,
+      );
+      setAiReport(report);
+      Alert.alert('Análisis IA', `Score de accesibilidad: ${report.scoreAccesibilidad}/100`);
+    } catch (error: any) {
+      console.error('Error en análisis IA:', error);
+      Alert.alert(
+        'Error IA',
+        error?.message?.includes('API key')
+          ? 'API key de Gemini no configurada. Asegúrate de que GOOGLE_MAPS_API tenga acceso a Gemini.'
+          : 'No se pudo completar el análisis con IA.',
+      );
+    }
+    setAiLoading(false);
+  }, [routes, selectedRouteIndex, analysisResult, routePolyline]);
 
   // Decodificar polyline de Google
   const decodePolyline = (encoded: string): Coordinate[] => {
@@ -597,186 +646,227 @@ export default function RouteScreen() {
   const routeInfo = getRouteInfo();
 
   // Calcular ruta cuando cambien origen/destino
-  useEffect(() => {
+  // NOTA: Ya no se dispara automáticamente. El usuario debe presionar "Buscar Ruta" en el modal.
+  const handleSearchRoute = useCallback(() => {
+    setSearchModalVisible(false);
     if (origin && destination) {
+      setRoutes([]);
+      setAnalysisResult(null);
+      setAiReport(null);
       calculateOptimalRoute();
     }
   }, [origin, destination, calculateOptimalRoute]);
 
+  const handleCancel = useCallback(() => {
+    cancelRef.current = true;
+    setLoading(false);
+    setRoutes([]);
+    setAnalysisResult(null);
+    setAiReport(null);
+  }, []);
+
+  const hasNearbyObstacles = analysisResult && analysisResult.nearbyObstacles.length > 0;
+
   return (
     <View style={styles.container}>
-      {/* MAPA */}
-      <MapView
-        style={styles.map}
-        region={mapRegion}
-        onRegionChangeComplete={setMapRegion}
-      >
-        {/* Marcador de origen */}
-        {origin && (
-          <Marker
-            coordinate={{ latitude: origin.latitude ?? 0, longitude: origin.longitude ?? 0 }}
-            title="Origen"
-            pinColor="#10b981"
-          />
-        )}
+      {loading ? (
+        /* PANTALLA DE CARGA — reemplaza el mapa completamente */
+        <View style={styles.loadingScreen}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={styles.loadingScreenText}>Calculando ruta...</Text>
+          <TouchableOpacity style={styles.loadingCancelBtn} onPress={handleCancel}>
+            <Text style={styles.loadingCancelText}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          {/* MAPA */}
+          <MapView
+            style={styles.map}
+            region={mapRegion}
+            onRegionChangeComplete={setMapRegion}
+          >
+            {origin && (
+              <Marker
+                coordinate={{ latitude: origin.latitude ?? 0, longitude: origin.longitude ?? 0 }}
+                title="Origen"
+                pinColor="#10b981"
+              />
+            )}
+            {destination && (
+              <Marker
+                coordinate={{ latitude: destination.latitude ?? 0, longitude: destination.longitude ?? 0 }}
+                title="Destino"
+                pinColor="#3b82f6"
+              />
+            )}
+            {routePolyline.length > 0 && (
+              <Polyline
+                coordinates={routePolyline}
+                strokeColor={analysisResult ? getRiskColor(analysisResult.riskLevel) : '#3b82f6'}
+                strokeWidth={4}
+              />
+            )}
+            {analysisResult?.nearbyObstacles.map((obstacle: any) => (
+              <Marker
+                key={obstacle.reportId}
+                coordinate={{ latitude: obstacle.latitude, longitude: obstacle.longitude }}
+                title={obstacle.type}
+                description={`Severidad: ${obstacle.severity}`}
+                pinColor="#ef4444"
+              />
+            ))}
+          </MapView>
 
-        {/* Marcador de destino */}
-        {destination && (
-          <Marker
-            coordinate={{ latitude: destination.latitude ?? 0, longitude: destination.longitude ?? 0 }}
-            title="Destino"
-            pinColor="#3b82f6"
-          />
-        )}
-
-        {/* Polyline de la ruta */}
-        {routePolyline.length > 0 && (
-          <Polyline
-            coordinates={routePolyline}
-            strokeColor={analysisResult ? getRiskColor(analysisResult.riskLevel) : '#3b82f6'}
-            strokeWidth={4}
-          />
-        )}
-
-        {/* Marcadores de obstáculos en la ruta */}
-        {analysisResult?.nearbyObstacles.map((obstacle: any) => (
-          <Marker
-            key={obstacle.reportId}
-            coordinate={{ latitude: obstacle.latitude, longitude: obstacle.longitude }}
-            title={obstacle.type}
-            description={`Severidad: ${obstacle.severity}`}
-            pinColor="#ef4444"
-          />
-        ))}
-      </MapView>
-
-      {/* BOTÓN DE BÚSQUEDA */}
-      <View style={styles.controlPanel}>
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={() => setSearchModalVisible(true)}
-        >
-          <Ionicons name="search" size={20} color="#1a1a1a" />
-          <Text style={styles.searchButtonText}>
-            {origin && destination
-              ? `${origin.mainText} → ${destination.mainText}`
-              : 'Buscar ruta'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* PANEL DE INFORMACIÓN DE RUTA */}
-      {routeInfo && analysisResult && (
-        <View style={styles.routeInfoPanel}>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* ACCESIBILIDAD */}
-            <View
-              style={[
-                styles.accessibilityCard,
-                { borderLeftColor: getRiskColor(analysisResult.riskLevel) },
-              ]}
+          {/* BOTÓN DE BÚSQUEDA */}
+          <View style={styles.controlPanel}>
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={() => setSearchModalVisible(true)}
             >
-              <View style={styles.riskHeader}>
-                <Text
+              <Ionicons name="search" size={20} color="#1a1a1a" />
+              <Text style={styles.searchButtonText}>
+                {origin && destination
+                  ? `${origin.mainText} → ${destination.mainText}`
+                  : 'Buscar ruta'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* PANEL DE INFORMACIÓN DE RUTA */}
+          {routeInfo && analysisResult && (
+            <View style={styles.routeInfoPanel}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View
                   style={[
-                    styles.riskLevel,
-                    { color: getRiskColor(analysisResult.riskLevel) },
+                    styles.accessibilityCard,
+                    { borderLeftColor: getRiskColor(analysisResult.riskLevel) },
                   ]}
                 >
-                  {getRiskLevelDescription(analysisResult.riskLevel)}
-                </Text>
-                <Text style={styles.riskScore}>
-                  Accesibilidad: {calculateAccessibilityScore(analysisResult)}%
-                </Text>
-              </View>
-
-              <View style={styles.routeDetails}>
-                <View style={styles.detailItem}>
-                  <Ionicons name="navigate" size={16} color="#666" />
-                  <Text style={styles.detailText}>{routeInfo.distance}</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Ionicons name="time" size={16} color="#666" />
-                  <Text style={styles.detailText}>{routeInfo.duration}</Text>
-                </View>
-              </View>
-
-              {/* RECOMENDACIONES */}
-              <View style={styles.recommendations}>
-                {analysisResult.recommendations.map((rec: string, idx: number) => (
-                  <Text key={idx} style={styles.recommendationText}>
-                    {rec}
-                  </Text>
-                ))}
-              </View>
-
-              {/* BOTÓN RECALCULAR */}
-              {analysisResult.riskLevel !== 'safe' && (
-                <TouchableOpacity
-                  style={styles.recalculateButton}
-                  onPress={recalculateAvoidingObstacles}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="refresh" size={16} color="#fff" />
-                      <Text style={styles.recalculateButtonText}>
-                        Buscar ruta más accesible
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* OBSTÁCULOS DETECTADOS */}
-            {analysisResult.nearbyObstacles.length > 0 && (
-              <View style={styles.obstaclesSection}>
-                <Text style={styles.sectionTitle}>
-                  ⚠️ Obstáculos detectados ({analysisResult.nearbyObstacles.length})
-                </Text>
-                {analysisResult.nearbyObstacles.map((obstacle: any, idx: number) => (
-                  <View key={idx} style={styles.obstacleItem}>
-                    <View
-                      style={[
-                        styles.obstacleType,
-                        {
-                          backgroundColor:
-                            obstacle.severity === 'high' ? '#fee2e2' : '#fef3c7',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.obstacleTypeText,
-                          {
-                            color:
-                              obstacle.severity === 'high'
-                                ? '#991b1b'
-                                : '#92400e',
-                          },
-                        ]}
-                      >
-                        {obstacle.type}
-                      </Text>
-                    </View>
-                    <Text style={styles.obstacleDistance}>
-                      A {obstacle.distance}m de la ruta
+                  <View style={styles.riskHeader}>
+                    <Text style={[styles.riskLevel, { color: getRiskColor(analysisResult.riskLevel) }]}>
+                      {getRiskLevelDescription(analysisResult.riskLevel)}
+                    </Text>
+                    <Text style={styles.riskScore}>
+                      Accesibilidad: {calculateAccessibilityScore(analysisResult)}%
                     </Text>
                   </View>
-                ))}
-              </View>
-            )}
-          </ScrollView>
-        </View>
+
+                  <View style={styles.routeDetails}>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="navigate" size={16} color="#666" />
+                      <Text style={styles.detailText}>{routeInfo.distance}</Text>
+                    </View>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="time" size={16} color="#666" />
+                      <Text style={styles.detailText}>{routeInfo.duration}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.recommendations}>
+                    {analysisResult.recommendations.map((rec: string, idx: number) => (
+                      <Text key={idx} style={styles.recommendationText}>{rec}</Text>
+                    ))}
+                  </View>
+
+                  {/* IA: solo si hay obstáculos cerca */}
+                  {hasNearbyObstacles ? (
+                    !aiReport ? (
+                      <TouchableOpacity
+                        style={styles.aiButton}
+                        onPress={runAIAnalysis}
+                        disabled={aiLoading}
+                      >
+                        {aiLoading ? (
+                          <ActivityIndicator size="small" color="#8b5cf6" />
+                        ) : (
+                          <Ionicons name="sparkles" size={16} color="#8b5cf6" />
+                        )}
+                        <Text style={styles.aiButtonText}>
+                          {aiLoading ? 'Analizando con IA...' : 'Analizar con IA'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null
+                  ) : (
+                    <View style={styles.noDataBanner}>
+                      <Ionicons name="information-circle" size={16} color="#6b7280" />
+                      <Text style={styles.noDataText}>
+                        No hay suficiente información. No se encontraron reportes cerca de esta ruta.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* REPORTE DE IA */}
+                {aiReport && (
+                  <View style={styles.aiCard}>
+                    <View style={styles.aiHeader}>
+                      <Ionicons name="sparkles" size={18} color="#8b5cf6" />
+                      <Text style={styles.aiTitle}>Análisis de Accesibilidad</Text>
+                      <View style={styles.aiScoreBadge}>
+                        <Text style={styles.aiScoreText}>{aiReport.scoreAccesibilidad}</Text>
+                        <Text style={styles.aiScoreTotal}>/100</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.aiResumen}>{aiReport.resumen}</Text>
+                    {aiReport.recomendaciones.length > 0 && (
+                      <View style={styles.aiRecomendaciones}>
+                        <Text style={styles.aiSectionTitle}>Recomendaciones:</Text>
+                        {aiReport.recomendaciones.map((rec: string, idx: number) => (
+                          <View key={idx} style={styles.aiRecomItem}>
+                            <Text style={styles.aiRecomBullet}>•</Text>
+                            <Text style={styles.aiRecomText}>{rec}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    <TouchableOpacity style={styles.aiRetryButton} onPress={() => setAiReport(null)}>
+                      <Text style={styles.aiRetryText}>Repetir análisis</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* OBSTÁCULOS DETECTADOS */}
+                {hasNearbyObstacles && (
+                  <View style={styles.obstaclesSection}>
+                    <Text style={styles.sectionTitle}>
+                      ⚠️ Obstáculos detectados ({analysisResult.nearbyObstacles.length})
+                    </Text>
+                    {analysisResult.nearbyObstacles.map((obstacle: any, idx: number) => (
+                      <View key={idx} style={styles.obstacleItem}>
+                        <View
+                          style={[
+                            styles.obstacleType,
+                            { backgroundColor: obstacle.severity === 'high' ? '#fee2e2' : '#fef3c7' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.obstacleTypeText,
+                              { color: obstacle.severity === 'high' ? '#991b1b' : '#92400e' },
+                            ]}
+                          >
+                            {obstacle.type}
+                          </Text>
+                        </View>
+                        <Text style={styles.obstacleDistance}>
+                          A {obstacle.distance}m de la ruta
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </>
       )}
 
       {/* MODAL DE BÚSQUEDA */}
       <RouteSearchModal
         visible={searchModalVisible}
         onClose={() => setSearchModalVisible(false)}
+        onSearchRoute={handleSearchRoute}
         onSelectOrigin={setOrigin}
         onSelectDestination={setDestination}
         origin={origin}
@@ -794,6 +884,22 @@ export default function RouteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   map: { flex: 1 },
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingScreenText: { fontSize: 16, fontWeight: '500', color: '#374151' },
+  loadingCancelBtn: {
+    marginTop: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+  },
+  loadingCancelText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   controlPanel: {
     position: 'absolute',
     top: 40,
@@ -866,6 +972,65 @@ const styles = StyleSheet.create({
   obstacleType: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 4, alignSelf: 'flex-start' },
   obstacleTypeText: { fontSize: 11, fontWeight: '500' },
   obstacleDistance: { fontSize: 12, color: '#666' },
+  noDataBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    padding: 10,
+    gap: 8,
+    marginTop: 12,
+  },
+  noDataText: { fontSize: 12, color: '#6b7280', flex: 1, lineHeight: 16 },
+  aiButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#f5f3ff',
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+  },
+  aiButtonText: { fontSize: 13, fontWeight: '600', color: '#8b5cf6' },
+  aiCard: {
+    backgroundColor: '#faf5ff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  aiTitle: { fontSize: 14, fontWeight: '600', color: '#7c3aed', flex: 1 },
+  aiScoreBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    backgroundColor: '#8b5cf6',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  aiScoreText: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  aiScoreTotal: { fontSize: 10, color: '#ddd6fe', marginLeft: 1 },
+  aiResumen: { fontSize: 12, color: '#4c1d95', lineHeight: 18, marginBottom: 8 },
+  aiRecomendaciones: { marginBottom: 8 },
+  aiSectionTitle: { fontSize: 12, fontWeight: '600', color: '#7c3aed', marginBottom: 6 },
+  aiRecomItem: { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  aiRecomBullet: { fontSize: 12, color: '#a78bfa' },
+  aiRecomText: { fontSize: 11, color: '#5b21b6', flex: 1, lineHeight: 16 },
+  aiRetryButton: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  aiRetryText: { fontSize: 11, color: '#a78bfa', fontWeight: '500' },
 });
 
 const modalStyles = StyleSheet.create({

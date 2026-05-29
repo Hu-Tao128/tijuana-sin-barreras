@@ -8,8 +8,11 @@ import {
   Text,
   Modal,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { searchPlaces, getPlaceDetails } from '../services/google-places-api';
+import { GOOGLE_PLACES_API_KEY } from '../services/constants';
 
 interface Place {
   placeId: string;
@@ -25,7 +28,7 @@ interface RouteSearchModalProps {
   onClose: () => void;
   onSelectOrigin: (place: Place) => void;
   onSelectDestination: (place: Place) => void;
-  apiKey: string; // Tu API key de Google Places
+  apiKey?: string;
 }
 
 export default function RouteSearchModal({
@@ -33,7 +36,7 @@ export default function RouteSearchModal({
   onClose,
   onSelectOrigin,
   onSelectDestination,
-  apiKey,
+  apiKey = GOOGLE_PLACES_API_KEY,
 }: RouteSearchModalProps) {
   const [searchType, setSearchType] = useState<
     'origin' | 'destination' | null
@@ -48,11 +51,8 @@ export default function RouteSearchModal({
     Place | null
   >(null);
 
-  /**
-   * Busca lugares con Google Places Autocomplete API
-   */
-  const searchPlaces = useCallback(
-    async (query: string, type: 'origin' | 'destination') => {
+  const handleSearchPlaces = useCallback(
+    async (query: string) => {
       if (query.length < 2) {
         setSuggestions([]);
         return;
@@ -61,11 +61,7 @@ export default function RouteSearchModal({
       setLoading(true);
 
       try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${apiKey}&language=es&components=country:mx`,
-        );
-
-        const data = await response.json();
+        const data = await searchPlaces(query, apiKey);
 
         if (data.predictions) {
           const places: Place[] = data.predictions.map(
@@ -79,6 +75,8 @@ export default function RouteSearchModal({
           );
 
           setSuggestions(places);
+        } else if (data.error_message) {
+          Alert.alert('Error API', data.error_message);
         }
       } catch (error) {
         console.log('Places search error:', error);
@@ -90,23 +88,16 @@ export default function RouteSearchModal({
     [apiKey],
   );
 
-  /**
-   * Obtiene coordenadas de un lugar
-   */
-  const getPlaceDetails = useCallback(
+  const handlePlaceDetails = useCallback(
     async (placeId: string, place: Place) => {
       try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${apiKey}`,
-        );
+        const location = await getPlaceDetails(placeId, apiKey);
 
-        const data = await response.json();
-
-        if (data.result?.geometry?.location) {
+        if (location) {
           const placeWithCoords = {
             ...place,
-            latitude: data.result.geometry.location.lat,
-            longitude: data.result.geometry.location.lng,
+            latitude: location.lat,
+            longitude: location.lng,
           };
 
           if (searchType === 'origin') {
@@ -119,9 +110,12 @@ export default function RouteSearchModal({
 
           setSearchQuery('');
           setSuggestions([]);
+        } else {
+          Alert.alert('Error', 'No se pudo obtener la ubicación del lugar');
         }
       } catch (error) {
         console.log('Place details error:', error);
+        Alert.alert('Error', 'Error al obtener detalles del lugar');
       }
     },
     [searchType, apiKey, onSelectOrigin, onSelectDestination],
@@ -130,12 +124,12 @@ export default function RouteSearchModal({
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
     if (searchType) {
-      searchPlaces(text, searchType);
+      handleSearchPlaces(text);
     }
   };
 
   const handleSelectPlace = (place: Place) => {
-    getPlaceDetails(place.placeId, place);
+    handlePlaceDetails(place.placeId, place);
   };
 
   const handleClose = () => {
