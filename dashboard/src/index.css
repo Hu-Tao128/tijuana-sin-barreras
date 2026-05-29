@@ -43,6 +43,8 @@
 
   --sidebar-width: 260px;
 
+  color-scheme: light;
+
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -93,4 +95,55 @@ code {
   min-height: 100vh;
   color: var(--text);
   background: var(--bg);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --Neutro-Neutro-100: #1e1e24;
+  --Neutro-Neutro-300: #121216;
+  --Neutro-Neutro-400: #2e2e36;
+  --Neutro-Neutro-600: #a8a8b3;
+  --Neutro-Neutro-700: #d4d4dc;
+  --Neutro-Neutro-800: #f0f0f5;
+
+  --color-bg: var(--Neutro-Neutro-300);
+  --color-surface: var(--Neutro-Neutro-100);
+  --color-border: var(--Neutro-Neutro-400);
+  --color-text: var(--Neutro-Neutro-600);
+  --color-text-strong: var(--Neutro-Neutro-700);
+  --color-text-heading: var(--Neutro-Neutro-800);
+
+  --code-bg: #2a2a32;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .route-planner__error {
+  background: #3a1520;
+  color: #f5a8bc;
+}
+
+[data-theme='dark'] .route-planner__chip--alto {
+  background: #3a1520;
+  color: #f5a8bc;
+}
+
+[data-theme='dark'] .route-planner__chip--medio {
+  background: #3d2e12;
+  color: #fcd34d;
+}
+
+[data-theme='dark'] .route-planner__chip--bajo {
+  background: #12321f;
+  color: #86efac;
+}
+
+[data-theme='dark'] .route-planner__basis--prelim {
+  background: #2a2a32;
+  color: var(--color-text);
+}
+
+[data-theme='dark'] .login-card__error {
+  background: #3a1520;
+  color: #f5a8bc;
 }
