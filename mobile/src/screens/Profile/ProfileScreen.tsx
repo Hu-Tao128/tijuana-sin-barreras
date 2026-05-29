@@ -17,7 +17,7 @@ import firestore from '@react-native-firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import functions from '@react-native-firebase/functions';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: any) {
   const [, setLoading] = useState(true);
 
   // 1. Datos de Cuenta Básicos
@@ -170,6 +170,13 @@ export default function ProfileScreen() {
           <Text style={styles.userName}>{name}</Text>
           <Text style={styles.userMeta}>{email}</Text>
           <Text style={styles.reportCounter}>📊 {reportCount} Reportes Generados</Text>
+          
+          <TouchableOpacity 
+            style={styles.viewReportsButton}
+            onPress={() => navigation.navigate('MyReports')}
+          >
+            <Text style={styles.viewReportsButtonText}>Ver mis reportes</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 2. CONFIGURACIÓN DEL PERFIL DE MOVILIDAD */}
@@ -318,6 +325,20 @@ const styles = StyleSheet.create({
   userName: { fontSize: 22, fontWeight: 'bold', color: '#161A1D', marginTop: 8 },
   userMeta: { fontSize: 13, color: '#767676', marginTop: 2 },
   reportCounter: { fontSize: 13, fontWeight: '600', color: '#9B2247', marginTop: 6 },
+  viewReportsButton: {
+    marginTop: 10,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#611232',
+  },
+  viewReportsButtonText: {
+    color: '#611232',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   sectionCard: { backgroundColor: '#FFF', borderRadius: 14, padding: 16, marginVertical: 8, borderWidth: 1, borderColor: '#DDD', elevation: 2 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#611232' },
   sectionSubtitle: { fontSize: 12, color: '#767676', marginBottom: 12, marginTop: 2 },

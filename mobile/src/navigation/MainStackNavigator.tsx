@@ -2,8 +2,10 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabNavigator from './MainTabNavigator';
 import ReportDetailScreen from '../screens/Report/ReportDetailScreen';
+import MyReportsScreen from '../screens/Report/MyReportsScreen';
 
 const Stack = createNativeStackNavigator();
+
 
 export default function MainStackNavigator() {
   return (
@@ -31,6 +33,11 @@ export default function MainStackNavigator() {
         name="ReportDetail"
         component={ReportDetailScreen}
         options={{ title: 'Detalle del Reporte' }}
+      />
+      <Stack.Screen
+        name="MyReports"
+        component={MyReportsScreen}
+        options={{ title: 'Mis Reportes' }}
       />
     </Stack.Navigator>
   );

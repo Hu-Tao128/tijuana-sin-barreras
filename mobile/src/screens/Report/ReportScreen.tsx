@@ -142,6 +142,12 @@ export default function ReportScreen({ navigation }: any) {
       });
 
       if (result.success) {
+        // Reset state immediately on success
+        setSelectedCategory(null);
+        setDescription('');
+        setPhotoUri(null);
+        setSeverity(5);
+
         Alert.alert(
           '¡Reporte enviado!',
           'Tu reporte ha sido registrado. La comunidad podrá confirmarlo.',
@@ -155,13 +161,13 @@ export default function ReportScreen({ navigation }: any) {
               },
             },
             {
-              text: 'OK',
+              text: 'Mis reportes',
               onPress: () => {
-                setSelectedCategory(null);
-                setDescription('');
-                setPhotoUri(null);
-                setSeverity(5);
+                navigation.navigate('MyReports');
               },
+            },
+            {
+              text: 'OK',
             },
           ],
         );
@@ -187,7 +193,15 @@ export default function ReportScreen({ navigation }: any) {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Reportar una obstrucción</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>Reportar una obstrucción</Text>
+            <TouchableOpacity 
+              style={styles.myReportsButton}
+              onPress={() => navigation.navigate('MyReports')}
+            >
+              <Text style={styles.myReportsButtonText}>Mis reportes</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.subtitle}>
             Ayuda a la accesibilidad en Tijuana reportando obstáculos en la
             infraestructura urbana.
@@ -332,11 +346,29 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  myReportsButton: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#611232',
+  },
+  myReportsButtonText: {
+    color: '#611232',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   title: {
     fontSize: 26,
     fontWeight: 'bold',
     color: '#611232',
-    marginBottom: 6,
     letterSpacing: -0.5,
   },
   subtitle: {

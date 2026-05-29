@@ -59,7 +59,8 @@ Crea un nuevo reporte de barrera de accesibilidad. Las fotos se suben primero a 
 **Flujo recomendado:**
 1. Subir foto a `Storage` → obtener `photoUrl`
 2. Llamar `createReport(...)` con los datos de ubicación y foto
-3. `createReport` ejecuta internamente anti-spam + clasificación Gemini Vision
+3. `createReport` guarda el reporte inmediatamente.
+4. **Análisis asíncrono:** Un proceso en segundo plano ejecuta anti-spam + clasificación Gemini Vision. El reporte se actualiza automáticamente con los resultados cuando la IA termina.
 
 ```ts
 const createReport = httpsCallable(functions, "createReport");
@@ -518,7 +519,6 @@ Si no detecta barrera:
 **Errores:** `internal` (falta GEMINI_API_KEY), `invalid-argument` (falta photoUrl)
 
 ---
-
 ### `detectSpamCallable`
 
 Filtro anti-spam. Determina si una foto contiene una barrera real o es contenido no válido (selfie, meme, paisaje, animal).
@@ -531,8 +531,30 @@ const result = await detectSpam({
 });
 ```
 
-**Parámetros:**
+---
 
+### `generateDashboardSummary`
+
+Genera un resumen ejecutivo para el dashboard basado en los últimos 100 reportes no archivados. **Requiere rol `moderator` o `official`.**
+
+```ts
+const generateSummary = httpsCallable(functions, "generateDashboardSummary");
+const result = await generateSummary();
+```
+
+**Respuesta:**
+```json
+{
+  "summary": "Se observa un incremento del 15% en reportes de banquetas rotas...",
+  "criticalZones": ["Zona Centro", "Otay"],
+  "mainBarrierType": "broken_sidewalk",
+  "recommendation": "Priorizar reparación en Calle 2da debido a alta densidad de reportes críticos."
+}
+```
+
+---
+
+### Flujo completo de reporte con IA
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `photoUrl` | `string` | Sí | URL pública de la foto en Firebase Storage |

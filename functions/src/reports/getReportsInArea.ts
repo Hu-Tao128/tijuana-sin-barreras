@@ -91,7 +91,13 @@ export const getReportsInArea = onCall(
       }
 
       if (status && report.status !== status) return false;
-      if (report.status === ReportStatus.ARCHIVED) return false;
+
+      // Restricción estricta: Solo mostramos reportes verificados o pendientes.
+      // Esto oculta automáticamente rechazados, archivados y cualquier otro estado futuro.
+      const isVisible = report.status === ReportStatus.VERIFIED || report.status === ReportStatus.PENDING;
+      if (!isVisible) {
+        return false;
+      }
 
       return true;
     });
