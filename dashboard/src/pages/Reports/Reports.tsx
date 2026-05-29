@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { MapPin, Trash2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { LocationPickerModal } from '../../maps'
 import {
   createReport,
   deleteReport,
@@ -35,6 +36,7 @@ export function Reports() {
   const [isCreating, setIsCreating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
 
   useEffect(() => {
     const unsubscribe = subscribeToReports(
@@ -139,25 +141,17 @@ export function Reports() {
                 required
               />
             </label>
-            <label>
-              Latitud
-              <input
-                type="number"
-                step="any"
-                value={form.latitude}
-                onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Longitud
-              <input
-                type="number"
-                step="any"
-                value={form.longitude}
-                onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
-                required
-              />
+            <label className="report-form__location">
+              Ubicación
+              <button
+                type="button"
+                className="secondary-btn report-form__location-btn"
+                onClick={() => setIsPickerOpen(true)}
+              >
+                <MapPin size={15} aria-hidden="true" />
+                {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)}
+              </button>
+              <span className="report-form__location-hint">Toca para elegir en el mapa</span>
             </label>
             <label className="report-form__wide">
               Descripción
@@ -235,6 +229,17 @@ export function Reports() {
           </div>
         )}
       </article>
+
+      {isPickerOpen && (
+        <LocationPickerModal
+          initial={{ lat: Number(form.latitude), lng: Number(form.longitude) }}
+          onConfirm={({ lat, lng }) => {
+            setForm((f) => ({ ...f, latitude: String(lat), longitude: String(lng) }))
+            setIsPickerOpen(false)
+          }}
+          onClose={() => setIsPickerOpen(false)}
+        />
+      )}
     </div>
   )
 }

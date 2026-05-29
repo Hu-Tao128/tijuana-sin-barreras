@@ -383,6 +383,23 @@
   grid-column: 1 / -1;
 }
 
+.report-form__location {
+  grid-column: 1 / -1;
+}
+
+.report-form__location-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+}
+
+.report-form__location-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text);
+}
+
 .report-form--full .primary-btn {
   grid-column: 1 / -1;
   justify-self: start;

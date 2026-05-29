@@ -8,7 +8,9 @@ import {
   YAxis,
 } from 'recharts'
 
-const PLACEHOLDER_DATA = [
+export type TrendDatum = { periodo: string; reportes: number }
+
+const PLACEHOLDER_DATA: TrendDatum[] = [
   { periodo: 'Ene', reportes: 30 },
   { periodo: 'Feb', reportes: 45 },
   { periodo: 'Mar', reportes: 38 },
@@ -17,11 +19,12 @@ const PLACEHOLDER_DATA = [
   { periodo: 'Jun', reportes: 71 },
 ]
 
-export function ReportsTrendChart() {
+export function ReportsTrendChart({ data }: { data?: TrendDatum[] }) {
+  const chartData = data && data.length > 0 ? data : PLACEHOLDER_DATA
   return (
     <div className="chart-container">
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={PLACEHOLDER_DATA} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis dataKey="periodo" tick={{ fill: 'var(--text)' }} />
           <YAxis tick={{ fill: 'var(--text)' }} />

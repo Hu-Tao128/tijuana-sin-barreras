@@ -3,7 +3,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
 import { AuthProvider } from './contexts/AuthContext'
 import { ProfileProvider } from './contexts/ProfileContext'
-import { Configuracion, Home, Login, Mapa, Reports } from './pages'
+import { Configuracion, Home, Login, Mapa, Reports, Rutas } from './pages'
 import './App.css'
 
 function App() {
@@ -17,6 +17,7 @@ function App() {
             <Route element={<AppShell />}>
               <Route index element={<Home />} />
               <Route path="mapa" element={<Mapa />} />
+              <Route path="rutas" element={<Rutas />} />
               <Route path="reportes" element={<Reports />} />
               <Route path="configuracion" element={<Configuracion />} />
             </Route>

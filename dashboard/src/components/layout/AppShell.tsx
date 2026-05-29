@@ -4,6 +4,7 @@ import {
   Bell,
   LayoutDashboard,
   Map as MapIcon,
+  Route as RouteIcon,
   Settings,
   ClipboardList,
   X,
@@ -16,6 +17,7 @@ import './AppShell.css'
 const NAV_ITEMS = [
   { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true },
   { to: '/mapa', label: 'Mapa', icon: MapIcon, end: false },
+  { to: '/rutas', label: 'Rutas', icon: RouteIcon, end: false },
   { to: '/reportes', label: 'Reportes', icon: ClipboardList, end: false },
 ] as const
 
