@@ -1,513 +1,890 @@
-import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  SafeAreaView, 
-  TouchableOpacity, 
-  ScrollView, 
-  TextInput, 
-  Alert,
-  StatusBar
-} from 'react-native';
-import Button from '../../components/Button';
+/**
+ * screens/RouteScreen.tsx
+ * Pantalla para buscar y analizar rutas accesibles
+ * 
+ * CARACTERÍSTICAS:
+ * ✅ Búsqueda de origen y destino con Google Places API
+ * ✅ Cálculo de rutas con Google Routes API
+ * ✅ Análisis de obstáculos en la ruta
+ * ✅ Recomendaciones de rutas alternativas más accesibles
+ * ✅ Visualización en mapa con polylines
+ */
 
-export default function RouteScreen() {
-  // Estados para simular la interacción con filtros en español
-  const [wheelchairFriendly, setWheelchairFriendly] = useState(true);
-  const [lowSteps, setLowSteps] = useState(false);
-  const [minimalIncline, setMinimalIncline] = useState(false);
-  
-  // Estado para saber cuál ruta alternativa está seleccionada
-  const [selectedRoute, setSelectedRoute] = useState('paseo_heroes');
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  TextInput,
+  Modal,
+  FlatList,
+  Platform,
+  PermissionsAndroid,
+} from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { collection, onSnapshot } from 'firebase/firestore';
+import Geolocation from 'react-native-geolocation-service';
+
+import { db } from '../../services/firebase';
+import { searchPlaces, getPlaceDetails } from '../../services/google-places-api';
+import { getRoutes } from '../../services/google-routes-api';
+import {
+  analyzeRoute,
+  calculateAccessibilityScore,
+  getRiskColor,
+  getRiskLevelDescription,
+} from '../../services/RouteAnalyzer';
+import { DEFAULT_LOCATION, GOOGLE_ROUTES_API_KEY, GOOGLE_PLACES_API_KEY } from '../../services/constants';
+
+const { height } = Dimensions.get('window');
+
+// ===========================
+// INTERFACES
+// ===========================
+
+interface Place {
+  placeId: string;
+  description: string;
+  mainText: string;
+  secondaryText?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+interface Report {
+  id: string;
+  latitude: number;
+  longitude: number;
+  type: string;
+  severity: 'low' | 'medium' | 'high';
+  date: number;
+  description?: string;
+}
+
+interface RouteStep {
+  startLocation: Coordinate;
+  endLocation: Coordinate;
+  polyline: {
+    encodedPolyline: string;
+  };
+  distance: {
+    value: number;
+    text: string;
+  };
+  duration: {
+    value: number;
+    text: string;
+  };
+}
+
+interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
+interface AnalysisResult {
+  riskLevel: 'safe' | 'partial' | 'not_recommended';
+  totalRisks: number;
+  nearbyObstacles: any[];
+  riskScore: number;
+  recommendations: string[];
+}
+
+interface MapRegion {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
+
+// ===========================
+// COMPONENTE: MODAL DE BÚSQUEDA
+// ===========================
+
+const RouteSearchModal = ({
+  visible,
+  onClose,
+  onSelectOrigin,
+  onSelectDestination,
+  origin,
+  destination,
+  apiKey,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelectOrigin: (place: Place) => void;
+  onSelectDestination: (place: Place) => void;
+  origin: Place | null;
+  destination: Place | null;
+  apiKey: string;
+}) => {
+  const [originQuery, setOriginQuery] = useState('');
+  const [destQuery, setDestQuery] = useState('');
+  const [originPredictions, setOriginPredictions] = useState<any[]>([]);
+  const [destPredictions, setDestPredictions] = useState<any[]>([]);
+  const [loadingOrigin, setLoadingOrigin] = useState(false);
+  const [loadingDest, setLoadingDest] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+
+  // Obtener ubicación actual al abrir
+  useEffect(() => {
+    if (visible) getCurrentPosition();
+  }, [visible]);
+
+  const getCurrentPosition = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) return;
+      }
+      Geolocation.getCurrentPosition(
+        (position) => setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+        (error) => console.log('Geolocation error:', error),
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    } catch (err) {
+      console.log('Error getting location:', err);
+    }
+  };
+
+  // Buscar lugares con Google Places
+  const handleSearch = async (text: string, type: 'origin' | 'destination') => {
+    if (type === 'origin') {
+      setOriginQuery(text);
+      if (text.length < 2) {
+        setOriginPredictions([]);
+        return;
+      }
+      setLoadingOrigin(true);
+      try {
+        const result = await searchPlaces(text, apiKey, userLocation || undefined);
+        if (result.predictions) {
+          setOriginPredictions(result.predictions);
+        } else if (result.error_message) {
+          Alert.alert('Error API', result.error_message);
+        }
+      } catch (error) {
+        Alert.alert('Error', 'No se pudieron cargar las predicciones');
+      }
+      setLoadingOrigin(false);
+    } else {
+      setDestQuery(text);
+      if (text.length < 2) {
+        setDestPredictions([]);
+        return;
+      }
+      setLoadingDest(true);
+      try {
+        const result = await searchPlaces(text, apiKey, userLocation || undefined);
+        if (result.predictions) {
+          setDestPredictions(result.predictions);
+        } else if (result.error_message) {
+          Alert.alert('Error API', result.error_message);
+        }
+      } catch (error) {
+        Alert.alert('Error', 'No se pudieron cargar las predicciones');
+      }
+      setLoadingDest(false);
+    }
+  };
+
+  // Seleccionar lugar de predicción
+  const selectPlace = async (prediction: any, type: 'origin' | 'destination') => {
+    try {
+      const location = await getPlaceDetails(prediction.place_id, apiKey);
+      if (!location) {
+        Alert.alert('Error', 'No se pudo obtener la ubicación del lugar');
+        return;
+      }
+      
+      const place: Place = {
+        placeId: prediction.place_id,
+        description: prediction.description,
+        mainText: prediction.structured_formatting?.main_text || prediction.description,
+        secondaryText: prediction.structured_formatting?.secondary_text,
+        latitude: location.lat,
+        longitude: location.lng,
+      };
+
+      if (type === 'origin') {
+        onSelectOrigin(place);
+        setOriginQuery(place.mainText);
+        setOriginPredictions([]);
+      } else {
+        onSelectDestination(place);
+        setDestQuery(place.mainText);
+        setDestPredictions([]);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Error al obtener detalles del lugar');
+    }
+  };
+
+  // Usar ubicación actual
+  const selectCurrentLocation = (type: 'origin' | 'destination') => {
+    if (!userLocation) {
+      Alert.alert('Error', 'No se pudo obtener tu ubicación');
+      return;
+    }
+    const place: Place = {
+      placeId: 'current_location',
+      description: 'Tu ubicación actual',
+      mainText: 'Mi ubicación',
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    };
+    if (type === 'origin') {
+      onSelectOrigin(place);
+      setOriginQuery('Mi ubicación');
+    } else {
+      onSelectDestination(place);
+      setDestQuery('Mi ubicación');
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F3F3F3" />
-      
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* ENCABEZADO */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Planifica tu Ruta</Text>
-          <Text style={styles.subtitle}>Navegación accesible para las calles de Tijuana.</Text>
-        </View>
-
-        {/* 1. PLANIFICADOR DE ORIGEN Y DESTINO */}
-        <View style={styles.searchCard}>
-          {/* Campo Origen */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.inputLabelField}>Origen</Text>
-            <View style={styles.inputRow}>
-              <Text style={styles.inputIcon}>🎯</Text>
-              <TextInput 
-                style={styles.textInputStyle} 
-                value="Zona Centro, Tijuana" 
-                editable={false} 
-              />
-            </View>
-          </View>
-
-          {/* Botón de Intercambio de ruta */}
-          <View style={styles.swapButtonContainer}>
-            <TouchableOpacity style={styles.swapButton} activeOpacity={0.8} onPress={() => Alert.alert('Intercambiar rutas')}>
-              <Text style={styles.swapIcon}>⇅</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Campo Destino */}
-          <View style={[styles.inputWrapper, { marginTop: 12 }]}>
-            <Text style={[styles.inputLabelField, styles.inputLabelDestino]}>Destino</Text>
-            <View style={styles.inputRow}>
-              <Text style={styles.inputIcon}>📍</Text>
-              <TextInput 
-                style={styles.textInputStyle} 
-                value="Plaza Río Tijuana" 
-                editable={false} 
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* 2. FILTROS RÁPIDOS DE ACCESIBILIDAD */}
-        <View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-            {/* Filtro Silla de ruedas */}
-            <TouchableOpacity 
-              style={[styles.filterBadge, wheelchairFriendly ? styles.filterBadgeActive : styles.filterBadgeInactive]} 
-              onPress={() => setWheelchairFriendly(!wheelchairFriendly)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterText, wheelchairFriendly ? styles.textActive : styles.textInactive]}>
-                ♿ Apto para silla de ruedas
-              </Text>
-            </TouchableOpacity>
-
-            {/* Filtro Escalones Bajos */}
-            <TouchableOpacity 
-              style={[styles.filterBadge, lowSteps ? styles.filterBadgeActive : styles.filterBadgeInactive]} 
-              onPress={() => setLowSteps(!lowSteps)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterText, lowSteps ? styles.textActive : styles.textInactive]}>
-                🪜 Escalones bajos
-              </Text>
-            </TouchableOpacity>
-
-            {/* Filtro Inclinación Mínima */}
-            <TouchableOpacity 
-              style={[styles.filterBadge, minimalIncline ? styles.filterBadgeActive : styles.filterBadgeInactive]} 
-              onPress={() => setMinimalIncline(!minimalIncline)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterText, minimalIncline ? styles.textActive : styles.textInactive]}>
-                📉 Inclinación mínima
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-
-        {/* 3. MINI MAPA PREVIO CON INFORMACIÓN */}
-        <View style={styles.mapPreviewCard}>
-          {/* Alerta de "Evitar Calle" */}
-          <View style={styles.avoidBadge}>
-            <Text style={styles.avoidText}>⚠️ Evitar: Calle 4ta</Text>
-          </View>
-
-          {/* Placeholder del centro del mapa */}
-          <View style={styles.mapIconPlaceholder}>
-            <Text style={{ fontSize: 36 }}>🗺️</Text>
-          </View>
-
-          {/* Indicador de Nivel de Seguridad */}
-          <View style={styles.safetyCard}>
-            <Text style={styles.safetyLabel}>NIVEL DE ACCESIBILIDAD</Text>
-            <Text style={styles.safetyPercentage}>Alto (98%)</Text>
-          </View>
-
-          {/* Botón Flotante para expandir mapa */}
-          <TouchableOpacity style={styles.expandButton} activeOpacity={0.8} onPress={() => Alert.alert('Maximizar mapa')}>
-            <Text style={styles.expandIcon}>⛶</Text>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={modalStyles.container}>
+        {/* Header */}
+        <View style={modalStyles.header}>
+          <Text style={modalStyles.title}>Buscar Ruta</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={24} color="#1a1a1a" />
           </TouchableOpacity>
         </View>
 
-        {/* 4. SECCIÓN DE RUTAS SUGERIDAS */}
-        <View style={styles.suggestedHeaderRow}>
-          <Text style={styles.sectionTitle}>Rutas sugeridas</Text>
-          <Text style={styles.sortLabel}>Ordenar por: Más rápida</Text>
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* ORIGEN */}
+          <View style={modalStyles.section}>
+            <Text style={modalStyles.sectionLabel}>📍 Origen</Text>
+            <View style={modalStyles.fieldContainer}>
+              <TextInput
+                style={modalStyles.input}
+                placeholder="¿De dónde sales?"
+                value={originQuery}
+                onChangeText={(text) => handleSearch(text, 'origin')}
+                placeholderTextColor="#999"
+              />
+              <TouchableOpacity onPress={() => selectCurrentLocation('origin')}>
+                <Ionicons name="locate" size={20} color="#3b82f6" />
+              </TouchableOpacity>
+            </View>
 
-        {/* Ruta Alternativa 1: Paseo de los Héroes */}
-        <TouchableOpacity 
-          style={[styles.routeCard, selectedRoute === 'paseo_heroes' ? styles.routeCardSelected : styles.routeCardUnselected]}
-          onPress={() => setSelectedRoute('paseo_heroes')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.routeLeftContainer}>
-            <View style={[styles.routeIconBox, selectedRoute === 'paseo_heroes' && styles.routeIconBoxActive]}>
-              <Text style={{ fontSize: 18 }}>👨‍🦽</Text>
-            </View>
-            <View style={styles.routeTextData}>
-              <Text style={[styles.routeNameText, selectedRoute === 'paseo_heroes' && styles.routeTextActive]}>Por Paseo de los Héroes</Text>
-              <Text style={styles.routeMetaText}>⏱️ 12 min  •  📏 1.2 km</Text>
-            </View>
+            {loadingOrigin && <ActivityIndicator size="small" color="#3b82f6" />}
+
+            {originPredictions.length > 0 && (
+              <View style={modalStyles.predictionsList}>
+                <FlatList
+                  data={originPredictions}
+                  keyExtractor={(item) => item.place_id}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={modalStyles.predictionItem}
+                      onPress={() => selectPlace(item, 'origin')}
+                    >
+                      <Ionicons name="location" size={16} color="#666" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={modalStyles.predictionMain}>
+                          {item.structured_formatting?.main_text || item.description}
+                        </Text>
+                        <Text style={modalStyles.predictionSecondary}>
+                          {item.structured_formatting?.secondary_text}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            )}
           </View>
-          <View style={styles.routeRightContainer}>
-            <View style={[styles.scoreBadge, selectedRoute === 'paseo_heroes' ? styles.scoreBadgeActive : styles.scoreBadgeInactive]}>
-              <Text style={[styles.scoreText, selectedRoute === 'paseo_heroes' && styles.scoreTextActive]}>9.5/10</Text>
+
+          {/* DESTINO */}
+          <View style={modalStyles.section}>
+            <Text style={modalStyles.sectionLabel}>🎯 Destino</Text>
+            <View style={modalStyles.fieldContainer}>
+              <TextInput
+                style={modalStyles.input}
+                placeholder="¿A dónde vas?"
+                value={destQuery}
+                onChangeText={(text) => handleSearch(text, 'destination')}
+                placeholderTextColor="#999"
+              />
+              <TouchableOpacity onPress={() => selectCurrentLocation('destination')}>
+                <Ionicons name="locate" size={20} color="#3b82f6" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.arrowIcon}>›</Text>
+
+            {loadingDest && <ActivityIndicator size="small" color="#3b82f6" />}
+
+            {destPredictions.length > 0 && (
+              <View style={modalStyles.predictionsList}>
+                <FlatList
+                  data={destPredictions}
+                  keyExtractor={(item) => item.place_id}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={modalStyles.predictionItem}
+                      onPress={() => selectPlace(item, 'destination')}
+                    >
+                      <Ionicons name="location" size={16} color="#666" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={modalStyles.predictionMain}>
+                          {item.structured_formatting?.main_text || item.description}
+                        </Text>
+                        <Text style={modalStyles.predictionSecondary}>
+                          {item.structured_formatting?.secondary_text}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            )}
           </View>
+
+          {/* MOSTRAR DESTINO SELECCIONADO */}
+          {origin && destination && (
+            <View style={modalStyles.selectedContainer}>
+              <View style={modalStyles.selectedItem}>
+                <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                <Text style={modalStyles.selectedText}>{origin.mainText}</Text>
+              </View>
+              <View style={modalStyles.arrow}>
+                <Ionicons name="arrow-down" size={16} color="#666" />
+              </View>
+              <View style={modalStyles.selectedItem}>
+                <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                <Text style={modalStyles.selectedText}>{destination.mainText}</Text>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* BOTÓN DE CERRAR */}
+        <TouchableOpacity style={modalStyles.closeButton} onPress={onClose}>
+          <Text style={modalStyles.closeButtonText}>
+            {origin && destination ? 'Buscar Ruta' : 'Cerrar'}
+          </Text>
         </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
 
-        {/* Ruta Alternativa 2: Independencia */}
-        <TouchableOpacity 
-          style={[styles.routeCard, selectedRoute === 'ave_independencia' ? styles.routeCardSelected : styles.routeCardUnselected]}
-          onPress={() => setSelectedRoute('ave_independencia')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.routeLeftContainer}>
-            <View style={[styles.routeIconBox, selectedRoute === 'ave_independencia' && styles.routeIconBoxActive]}>
-              <Text style={{ fontSize: 18 }}>🚶‍♂️</Text>
-            </View>
-            <View style={styles.routeTextData}>
-              <Text style={[styles.routeNameText, selectedRoute === 'ave_independencia' && styles.routeTextActive]}>Por Av. Independencia</Text>
-              <Text style={styles.routeMetaText}>⏱️ 15 min  •  📏 1.5 km</Text>
-            </View>
-          </View>
-          <View style={styles.routeRightContainer}>
-            <View style={[styles.scoreBadge, selectedRoute === 'ave_independencia' ? styles.scoreBadgeActive : styles.scoreBadgeInactive]}>
-              <Text style={[styles.scoreText, selectedRoute === 'ave_independencia' && styles.scoreTextActive]}>7.2/10</Text>
-            </View>
-            <Text style={styles.arrowIcon}>›</Text>
-          </View>
-        </TouchableOpacity>
+// ===========================
+// COMPONENTE PRINCIPAL: ROUTESCREEN
+// ===========================
 
-        {/* 5. BOTÓN DE ACCIÓN FINAL */}
-        <View style={styles.buttonContainer}>
-          <Button 
-            title="Iniciar navegación" 
-            onPress={() => Alert.alert('Navegación', 'Iniciando guía GPS paso a paso...')} 
-            variant="primary"
+export default function RouteScreen() {
+  const [origin, setOrigin] = useState<Place | null>(null);
+  const [destination, setDestination] = useState<Place | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [mapRegion, setMapRegion] = useState<MapRegion>(DEFAULT_LOCATION);
+
+  // Cargar reportes de Firestore
+  useEffect(() => {
+    try {
+      const reportsRef = collection(db, 'reports');
+      const unsubscribe = onSnapshot(
+        reportsRef,
+        (snapshot) => {
+          const data: Report[] = [];
+          snapshot.forEach(doc => {
+            const report = doc.data();
+            if (report.latitude !== undefined && report.longitude !== undefined) {
+              data.push({
+                id: doc.id,
+                latitude: report.latitude,
+                longitude: report.longitude,
+                type: report.type || 'Obstáculo',
+                severity: report.severity || 'medium',
+                date: report.date || Date.now(),
+                description: report.description,
+              });
+            }
+          });
+          setReports(data);
+        },
+        (error) => {
+          console.error('Error cargando reportes:', error);
+          Alert.alert('Error', 'No se pudieron cargar los reportes');
+        }
+      );
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Error en Firestore:', error);
+    }
+  }, []);
+
+  // Calcular ruta óptima cuando hay origen y destino
+  const calculateOptimalRoute = useCallback(async () => {
+    if (!origin || !destination) return;
+
+    setLoading(true);
+    try {
+      const originCoords = {
+        latitude: origin.latitude!,
+        longitude: origin.longitude!,
+      };
+      const destCoords = {
+        latitude: destination.latitude!,
+        longitude: destination.longitude!,
+      };
+
+      const routeData = await getRoutes(originCoords, destCoords, GOOGLE_ROUTES_API_KEY);
+      
+      if (routeData?.routes?.length) {
+        setRoutes(routeData.routes);
+        setSelectedRouteIndex(0);
+
+        // Actualizar región del mapa
+        setMapRegion({
+          latitude: (origin.latitude! + destination.latitude!) / 2,
+          longitude: (origin.longitude! + destination.longitude!) / 2,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        });
+
+        // Analizar la ruta principal contra obstáculos
+        const mainRoute = routeData.routes[0];
+        const steps: RouteStep[] = mainRoute.legs.flatMap((leg: any) => leg.steps);
+        const analysis = analyzeRoute(steps, reports);
+        setAnalysisResult(analysis);
+
+        Alert.alert('✅ Rutas encontradas', `Se encontraron ${routeData.routes.length} ruta(s) disponibles`);
+      } else {
+        Alert.alert('Error', 'No se encontraron rutas disponibles');
+      }
+    } catch (error) {
+      console.error('Error calculando ruta:', error);
+      Alert.alert('Error', 'No se pudo calcular la ruta');
+    }
+    setLoading(false);
+  }, [origin, destination, reports]);
+
+  // Buscar ruta más accesible evitando obstáculos
+  const recalculateAvoidingObstacles = useCallback(async () => {
+    if (!origin || !destination || !analysisResult) return;
+
+    // Puntos críticos a evitar (obstáculos severos)
+    const criticalObstacles = analysisResult.nearbyObstacles
+      .filter(o => o.severity === 'high')
+      .map(o => ({ latitude: o.latitude, longitude: o.longitude }));
+
+    if (criticalObstacles.length === 0) {
+      Alert.alert('Información', 'No hay obstáculos críticos para evitar');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const originCoords = {
+        latitude: origin.latitude!,
+        longitude: origin.longitude!,
+      };
+      const destCoords = {
+        latitude: destination.latitude!,
+        longitude: destination.longitude!,
+      };
+
+      const alternativeData = await getRoutes(
+        originCoords,
+        destCoords,
+        GOOGLE_ROUTES_API_KEY,
+        criticalObstacles
+      );
+
+      if (alternativeData?.routes?.length) {
+        setRoutes(alternativeData.routes);
+        setSelectedRouteIndex(0);
+
+        // Re-analizar nueva ruta
+        const mainRoute = alternativeData.routes[0];
+        const steps: RouteStep[] = mainRoute.legs.flatMap((leg: any) => leg.steps);
+        const analysis = analyzeRoute(steps, reports);
+        setAnalysisResult(analysis);
+
+        Alert.alert('✅ Rutas recalculadas', 'Se encontraron rutas alternativas más accesibles');
+      } else {
+        Alert.alert('Error', 'No se pudieron recalcular las rutas');
+      }
+    } catch (error) {
+      console.error('Error recalculando:', error);
+      Alert.alert('Error', 'Error al recalcular la ruta');
+    }
+    setLoading(false);
+  }, [origin, destination, analysisResult]);
+
+  // Decodificar polyline de Google
+  const decodePolyline = (encoded: string): Coordinate[] => {
+    const decoded: Coordinate[] = [];
+    let index = 0, lat = 0, lng = 0;
+    
+    while (index < encoded.length) {
+      let result = 0, shift = 0, b;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      
+      const deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
+      lat += deltaLat;
+
+      result = 0;
+      shift = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      
+      const deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
+      lng += deltaLng;
+
+      decoded.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    }
+    return decoded;
+  };
+
+  // Obtener polyline de la ruta actual
+  const getCurrentRoutePolyline = useCallback((): Coordinate[] => {
+    if (routes.length === 0 || selectedRouteIndex >= routes.length) return [];
+    
+    const steps = routes[selectedRouteIndex].legs.flatMap((leg: any) => leg.steps);
+    const coordinates: Coordinate[] = [];
+    
+    for (const step of steps) {
+      if (step.polyline?.encodedPolyline) {
+        try {
+          coordinates.push(...decodePolyline(step.polyline.encodedPolyline));
+        } catch (e) {
+          console.log('Error decodificando polyline:', e);
+        }
+      }
+    }
+    return coordinates;
+  }, [routes, selectedRouteIndex]);
+
+  // Obtener info de la ruta
+  const getRouteInfo = useCallback(() => {
+    if (routes.length === 0 || selectedRouteIndex >= routes.length) return null;
+    const leg = routes[selectedRouteIndex].legs[0];
+    return {
+      distance: leg.distance.text,
+      duration: leg.duration.text,
+    };
+  }, [routes, selectedRouteIndex]);
+
+  const routePolyline = getCurrentRoutePolyline();
+  const routeInfo = getRouteInfo();
+
+  // Calcular ruta cuando cambien origen/destino
+  useEffect(() => {
+    if (origin && destination) {
+      calculateOptimalRoute();
+    }
+  }, [origin, destination, calculateOptimalRoute]);
+
+  return (
+    <View style={styles.container}>
+      {/* MAPA */}
+      <MapView
+        style={styles.map}
+        region={mapRegion}
+        onRegionChangeComplete={setMapRegion}
+      >
+        {/* Marcador de origen */}
+        {origin && (
+          <Marker
+            coordinate={{ latitude: origin.latitude ?? 0, longitude: origin.longitude ?? 0 }}
+            title="Origen"
+            pinColor="#10b981"
           />
-        </View>
+        )}
 
-      </ScrollView>
-    </SafeAreaView>
+        {/* Marcador de destino */}
+        {destination && (
+          <Marker
+            coordinate={{ latitude: destination.latitude ?? 0, longitude: destination.longitude ?? 0 }}
+            title="Destino"
+            pinColor="#3b82f6"
+          />
+        )}
+
+        {/* Polyline de la ruta */}
+        {routePolyline.length > 0 && (
+          <Polyline
+            coordinates={routePolyline}
+            strokeColor={analysisResult ? getRiskColor(analysisResult.riskLevel) : '#3b82f6'}
+            strokeWidth={4}
+          />
+        )}
+
+        {/* Marcadores de obstáculos en la ruta */}
+        {analysisResult?.nearbyObstacles.map((obstacle: any) => (
+          <Marker
+            key={obstacle.reportId}
+            coordinate={{ latitude: obstacle.latitude, longitude: obstacle.longitude }}
+            title={obstacle.type}
+            description={`Severidad: ${obstacle.severity}`}
+            pinColor="#ef4444"
+          />
+        ))}
+      </MapView>
+
+      {/* BOTÓN DE BÚSQUEDA */}
+      <View style={styles.controlPanel}>
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={() => setSearchModalVisible(true)}
+        >
+          <Ionicons name="search" size={20} color="#1a1a1a" />
+          <Text style={styles.searchButtonText}>
+            {origin && destination
+              ? `${origin.mainText} → ${destination.mainText}`
+              : 'Buscar ruta'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* PANEL DE INFORMACIÓN DE RUTA */}
+      {routeInfo && analysisResult && (
+        <View style={styles.routeInfoPanel}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* ACCESIBILIDAD */}
+            <View
+              style={[
+                styles.accessibilityCard,
+                { borderLeftColor: getRiskColor(analysisResult.riskLevel) },
+              ]}
+            >
+              <View style={styles.riskHeader}>
+                <Text
+                  style={[
+                    styles.riskLevel,
+                    { color: getRiskColor(analysisResult.riskLevel) },
+                  ]}
+                >
+                  {getRiskLevelDescription(analysisResult.riskLevel)}
+                </Text>
+                <Text style={styles.riskScore}>
+                  Accesibilidad: {calculateAccessibilityScore(analysisResult)}%
+                </Text>
+              </View>
+
+              <View style={styles.routeDetails}>
+                <View style={styles.detailItem}>
+                  <Ionicons name="navigate" size={16} color="#666" />
+                  <Text style={styles.detailText}>{routeInfo.distance}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Ionicons name="time" size={16} color="#666" />
+                  <Text style={styles.detailText}>{routeInfo.duration}</Text>
+                </View>
+              </View>
+
+              {/* RECOMENDACIONES */}
+              <View style={styles.recommendations}>
+                {analysisResult.recommendations.map((rec: string, idx: number) => (
+                  <Text key={idx} style={styles.recommendationText}>
+                    {rec}
+                  </Text>
+                ))}
+              </View>
+
+              {/* BOTÓN RECALCULAR */}
+              {analysisResult.riskLevel !== 'safe' && (
+                <TouchableOpacity
+                  style={styles.recalculateButton}
+                  onPress={recalculateAvoidingObstacles}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="refresh" size={16} color="#fff" />
+                      <Text style={styles.recalculateButtonText}>
+                        Buscar ruta más accesible
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* OBSTÁCULOS DETECTADOS */}
+            {analysisResult.nearbyObstacles.length > 0 && (
+              <View style={styles.obstaclesSection}>
+                <Text style={styles.sectionTitle}>
+                  ⚠️ Obstáculos detectados ({analysisResult.nearbyObstacles.length})
+                </Text>
+                {analysisResult.nearbyObstacles.map((obstacle: any, idx: number) => (
+                  <View key={idx} style={styles.obstacleItem}>
+                    <View
+                      style={[
+                        styles.obstacleType,
+                        {
+                          backgroundColor:
+                            obstacle.severity === 'high' ? '#fee2e2' : '#fef3c7',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.obstacleTypeText,
+                          {
+                            color:
+                              obstacle.severity === 'high'
+                                ? '#991b1b'
+                                : '#92400e',
+                          },
+                        ]}
+                      >
+                        {obstacle.type}
+                      </Text>
+                    </View>
+                    <Text style={styles.obstacleDistance}>
+                      A {obstacle.distance}m de la ruta
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* MODAL DE BÚSQUEDA */}
+      <RouteSearchModal
+        visible={searchModalVisible}
+        onClose={() => setSearchModalVisible(false)}
+        onSelectOrigin={setOrigin}
+        onSelectDestination={setDestination}
+        origin={origin}
+        destination={destination}
+        apiKey={GOOGLE_PLACES_API_KEY}
+      />
+    </View>
   );
 }
 
+// ===========================
+// ESTILOS
+// ===========================
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F3F3F3', // --Neutro-Neutro-300
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#611232', // --Presidencia-principal-600
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#434343', // --Neutro-Neutro-700
-  },
-  // Planificador de Rutas (Buzón de Inputs integrado)
-  searchCard: {
-    backgroundColor: '#FFF', // --Neutro-Neutro-100
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#DDD', // --Neutro-Neutro-400
-    position: 'relative',
-    zIndex: 1,
-    elevation: 2,
-    shadowColor: '#161A1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
-  inputWrapper: {
-    backgroundColor: '#FFF',
-    borderWidth: 1.5,
-    borderColor: '#DDD',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  inputLabelField: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#767676', // --Neutro-Neutro-600
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  inputLabelDestino: {
-    color: '#9B2247', // Resaltado sutil guinda intermedio
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  inputIcon: {
-    fontSize: 15,
-    marginRight: 8,
-  },
-  textInputStyle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#161A1D', // --Neutro-Neutro-800
-    padding: 0,
-    flex: 1,
-  },
-  // Botón de Swap con la paleta Guinda
-  swapButtonContainer: {
+  container: { flex: 1, backgroundColor: '#fff' },
+  map: { flex: 1 },
+  controlPanel: {
     position: 'absolute',
-    right: 28,
-    top: '50%',
-    marginTop: -16,
+    top: 40,
+    left: 16,
+    right: 16,
     zIndex: 10,
   },
-  swapButton: {
-    backgroundColor: '#611232', // --Presidencia-principal-600
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
-    elevation: 3,
-    shadowColor: '#161A1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-  },
-  swapIcon: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  // Contenedor de Filtros Horizontales corregidos
-  filterContainer: {
+  searchButton: {
     flexDirection: 'row',
-    marginVertical: 16,
-  },
-  filterBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    borderWidth: 1.5,
-  },
-  filterBadgeActive: {
-    backgroundColor: '#FFF',
-    borderColor: '#611232', // Activo con Guinda Principal
-  },
-  filterBadgeInactive: {
-    backgroundColor: '#FFF',
-    borderColor: '#DDD', // --Neutro-Neutro-400
-  },
-  filterText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  textActive: { 
-    color: '#611232',
-    fontWeight: '700'
-  },
-  textInactive: { 
-    color: '#767676' 
-  },
-  // Área del Mapa Limpia e Institucional
-  mapPreviewCard: {
-    backgroundColor: '#EAEAEA',
-    height: 160,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DDD',
-    position: 'relative',
-    justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  mapIconPlaceholder: {
-    opacity: 0.5,
-  },
-  avoidBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: '#9B2247', // Advertencia refinada al guinda medio
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  avoidText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  safetyCard: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    backgroundColor: '#FFF',
-    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#DDD',
-    elevation: 2,
-  },
-  safetyLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#767676',
-    letterSpacing: 0.5,
-  },
-  safetyPercentage: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#611232', // Resaltado guinda institucional
-    marginTop: 1,
-  },
-  expandButton: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: '#611232',
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-  },
-  expandIcon: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  // Listado de Rutas Sugeridas
-  suggestedHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#161A1D',
-  },
-  sortLabel: {
-    fontSize: 12,
-    color: '#767676',
-    fontWeight: '600',
-  },
-  routeCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 6,
-    borderWidth: 1.5,
-    backgroundColor: '#FFF',
-  },
-  routeCardSelected: {
-    borderColor: '#611232', // Guinda principal al seleccionar
-    elevation: 3,
-    shadowColor: '#611232',
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
+    gap: 8,
   },
-  routeCardUnselected: {
-    borderColor: '#DDD',
+  searchButtonText: { fontSize: 14, color: '#666', flex: 1 },
+  routeInfoPanel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    maxHeight: height * 0.35,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
   },
-  routeLeftContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  routeIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: '#F3F3F3',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#DDD',
-  },
-  routeIconBoxActive: {
-    borderColor: '#611232',
-    backgroundColor: '#FDECEF', // Fondo sutil guinda traslúcido
-  },
-  routeTextData: {
-    flex: 1,
-  },
-  routeNameText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#434343',
-  },
-  routeTextActive: {
-    color: '#611232',
-  },
-  routeMetaText: {
-    fontSize: 12,
-    color: '#767676',
-    marginTop: 4,
-  },
-  routeRightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  scoreBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  accessibilityCard: {
+    borderLeftWidth: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#f9fafb',
     borderRadius: 12,
-    marginRight: 6,
-    borderWidth: 1,
-  },
-  scoreBadgeActive: {
-    backgroundColor: '#611232',
-    borderColor: '#611232',
-  },
-  scoreBadgeInactive: {
-    backgroundColor: '#F3F3F3',
-    borderColor: '#DDD',
-  },
-  scoreText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#767676',
-  },
-  scoreTextActive: {
-    color: '#FFF',
-  },
-  arrowIcon: {
-    fontSize: 20,
-    color: '#DDD',
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  buttonContainer: {
-    marginTop: 20,
     marginBottom: 12,
   },
+  riskHeader: { marginBottom: 8 },
+  riskLevel: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  riskScore: { fontSize: 12, color: '#666' },
+  routeDetails: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  detailText: { fontSize: 12, color: '#666' },
+  recommendations: { marginBottom: 12 },
+  recommendationText: { fontSize: 12, color: '#1a1a1a', marginBottom: 4, lineHeight: 16 },
+  recalculateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+    gap: 6,
+  },
+  recalculateButtonText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  obstaclesSection: { marginBottom: 8 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
+  obstacleItem: { marginBottom: 8 },
+  obstacleType: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 4, alignSelf: 'flex-start' },
+  obstacleTypeText: { fontSize: 11, fontWeight: '500' },
+  obstacleDistance: { fontSize: 12, color: '#666' },
+});
+
+const modalStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fff', paddingTop: 50, paddingHorizontal: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  title: { fontSize: 20, fontWeight: '600', color: '#1a1a1a' },
+  section: { marginBottom: 24 },
+  sectionLabel: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
+  fieldContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#f9fafb', borderRadius: 8, gap: 8 },
+  input: { flex: 1, fontSize: 16, paddingVertical: 8, color: '#1a1a1a' },
+  predictionsList: { maxHeight: 200, marginTop: 8, backgroundColor: '#f9fafb', borderRadius: 8, overflow: 'hidden' },
+  predictionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  predictionMain: { fontSize: 14, fontWeight: '500', color: '#1a1a1a' },
+  predictionSecondary: { fontSize: 12, color: '#666', marginTop: 2 },
+  selectedContainer: { backgroundColor: '#f0f9ff', padding: 16, borderRadius: 12, marginBottom: 24 },
+  selectedItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  arrow: { alignItems: 'center', marginVertical: 8 },
+  selectedText: { flex: 1, fontSize: 14, fontWeight: '500', color: '#1a1a1a' },
+  closeButton: { paddingVertical: 12, backgroundColor: '#3b82f6', borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  closeButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
