@@ -45,7 +45,9 @@ export const deleteMyReport = onCall(
     const deleteOps: Promise<void>[] = [];
 
     confirmationsSnapshot.forEach((child) => {
-      deleteOps.push(child.ref!.remove());
+      if (child.ref) {
+        deleteOps.push(child.ref.remove());
+      }
     });
 
     const commentsRef = db.ref("comments");
@@ -55,7 +57,9 @@ export const deleteMyReport = onCall(
       .once("value");
 
     commentsSnapshot.forEach((child) => {
-      deleteOps.push(child.ref!.remove());
+      if (child.ref) {
+        deleteOps.push(child.ref.remove());
+      }
     });
 
     await Promise.all(deleteOps);

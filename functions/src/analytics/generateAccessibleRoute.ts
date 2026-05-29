@@ -243,9 +243,9 @@ export const generateAccessibleRoute = onCall(
 
       if (minDist <= CORRIDOR_METERS) {
         const penalty = AccessibilityPenalty[barrier.type] ?? 10;
-        totalPenalty += isBarrierCriticalForProfile(barrier.type, mobilityProfile)
-          ? penalty * 2
-          : penalty;
+        totalPenalty += isBarrierCriticalForProfile(barrier.type, mobilityProfile) ?
+          penalty * 2 :
+          penalty;
       }
     }
 

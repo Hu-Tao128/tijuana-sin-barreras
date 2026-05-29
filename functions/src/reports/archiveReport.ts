@@ -26,9 +26,9 @@ export const archiveReport = onCall(
     }
 
     const validReasons = ["fixed", "duplicate", "invalid", "other"];
-    const reason = archiveReason && validReasons.includes(archiveReason)
-      ? archiveReason
-      : "other";
+    const reason = archiveReason && validReasons.includes(archiveReason) ?
+      archiveReason :
+      "other";
 
     const db = getDatabase();
     const reportRef = db.ref(`reports/${reportId}`);
