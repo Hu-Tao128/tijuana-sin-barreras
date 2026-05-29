@@ -297,7 +297,7 @@ export default function ProfileScreen({ navigation }: any) {
         {/* 6. ACCIONES DE GUARDADO */}
         <View style={styles.actionContainer}>
           <Button 
-            title="Sincronizar Perfil de Ruteo" 
+            title="Guardar datos" 
             onPress={handleSaveChanges} 
             variant="primary"
           />
