@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getDatabase} from "firebase-admin/database";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
 import * as logger from "firebase-functions/logger";
 import {verifyUser, getUserId} from "../middleware/auth";
 import type {Report} from "../types/Report";
@@ -63,6 +64,21 @@ export const deleteMyReport = onCall(
     });
 
     await Promise.all(deleteOps);
+
+    if (report.photoUrl) {
+      try {
+        const bucket = getStorage().bucket();
+        const urlPath = report.photoUrl.replace(
+          /^https:\/\/firebasestorage\.googleapis\.com\/v\d\/b\/[^/]+\/o\//,
+          ""
+        ).replace(/\?.*$/, "");
+        const filePath = decodeURIComponent(urlPath);
+        await bucket.file(filePath).delete({ignoreNotFound: true});
+        logger.info("Foto de reporte eliminada de Storage", {reportId, filePath});
+      } catch (err) {
+        logger.warn("No se pudo eliminar la foto en Storage", {reportId, error: err});
+      }
+    }
 
     try {
       const firestore = getFirestore();

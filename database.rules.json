@@ -4,16 +4,19 @@
       ".read": "auth != null",
       ".write": false,
       "$reportId": {
-        ".write": false
+        ".write": false,
+        ".indexOn": ["userId", "geohash", "status"]
       }
     },
     "confirmations": {
       ".read": "auth != null",
-      ".write": false
+      ".write": false,
+      ".indexOn": ["reportId"]
     },
     "comments": {
       ".read": "auth != null",
-      ".write": false
+      ".write": false,
+      ".indexOn": ["reportId"]
     },
     "analytics": {
       ".read": "auth != null && (auth.token.role === 'moderator' || auth.token.role === 'official')",
