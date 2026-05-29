@@ -33,19 +33,19 @@ export const rejectReport = onCall(
       .equalTo(reportId)
       .once("value");
 
-    let alreadyRejected = false;
+    let alreadyVoted = false;
 
     existingSnapshot.forEach((child) => {
       const confirmation = child.val() as Confirmation;
-      if (confirmation.userId === userId && !confirmation.isConfirmed) {
-        alreadyRejected = true;
+      if (confirmation.userId === userId) {
+        alreadyVoted = true;
       }
     });
 
-    if (alreadyRejected) {
+    if (alreadyVoted) {
       throw new HttpsError(
         "already-exists",
-        "Ya has rechazado este reporte."
+        "Ya has emitido un voto para este reporte."
       );
     }
 
