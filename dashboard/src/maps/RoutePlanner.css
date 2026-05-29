@@ -86,8 +86,8 @@
 }
 
 .route-planner__basis--visual {
-  background: #e7eeff;
-  color: #2563eb;
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
 }
 
 .route-planner__basis--prelim {
@@ -144,7 +144,7 @@
 
 .route-planner__score-meta strong {
   font-size: 0.95rem;
-  color: var(--Text-Text-primary-enabled);
+  color: var(--color-text-heading);
 }
 
 .route-planner__score-meta span {
@@ -166,18 +166,18 @@
 }
 
 .route-planner__chip--alto {
-  background: #fde8ee;
-  color: #9b2247;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .route-planner__chip--medio {
-  background: #fef3e2;
-  color: #b45309;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 .route-planner__chip--bajo {
-  background: #e7f6ec;
-  color: #15803d;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .route-planner__resumen {
@@ -226,7 +226,7 @@
 .route-planner__title {
   margin: 0;
   font-weight: 600;
-  color: var(--Text-Text-primary-enabled);
+  color: var(--color-text-heading);
 }
 
 .route-planner__field {
@@ -257,8 +257,8 @@
   margin: 0;
   padding: 0.5rem 0.6rem;
   border-radius: 6px;
-  background: #fef2f2;
-  color: #9b2247;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
   font-size: 0.82rem;
   border-left: 3px solid var(--Primarios-Guinda-600);
 }

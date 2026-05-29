@@ -38,7 +38,7 @@
   margin: 0;
   font-weight: 600;
   font-size: 1.05rem;
-  color: var(--Text-Text-primary-enabled);
+  color: var(--color-text-heading);
 }
 
 .location-picker__close {

@@ -29,6 +29,18 @@
   --color-sidebar: var(--Background-Background-primary-600);
   --color-sidebar-deep: var(--Presidencia-900);
   --color-on-primary: var(--Neutro-Neutro-100);
+  --color-sidebar-border: rgba(255, 255, 255, 0.2);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.1);
+  --color-sidebar-active: var(--Primarios-Guinda-500);
+  --color-sidebar-shadow: rgba(0, 0, 0, 0.24);
+  --color-info-bg: #e7eeff;
+  --color-info-text: #2563eb;
+  --color-success-bg: #dcfce7;
+  --color-success-text: #166534;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #b45309;
+  --color-danger-bg: #fee2e2;
+  --color-danger-text: #9b2247;
 
   /* Compatibilidad con componentes existentes */
   --text: var(--color-text);
@@ -113,29 +125,48 @@ code {
   --color-text: var(--Neutro-Neutro-600);
   --color-text-strong: var(--Neutro-Neutro-700);
   --color-text-heading: var(--Neutro-Neutro-800);
+  --Text-Text-primary-enabled: var(--color-text-heading);
+  --Text-Text-primary-hover: #d986a6;
+  --Background-Background-primary-600: #7b1e41;
+  --color-primary: var(--Text-Text-primary-enabled);
+  --color-primary-hover: var(--Text-Text-primary-hover);
+  --color-sidebar: #16161d;
+  --color-sidebar-deep: #0d0d12;
+  --color-sidebar-border: rgba(255, 255, 255, 0.08);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --color-sidebar-active: color-mix(in srgb, var(--Primarios-Guinda-500) 55%, #1f1f28);
+  --color-sidebar-shadow: rgba(0, 0, 0, 0.4);
+  --color-info-bg: #1b2945;
+  --color-info-text: #93c5fd;
+  --color-success-bg: #153322;
+  --color-success-text: #86efac;
+  --color-warning-bg: #3d2e12;
+  --color-warning-text: #fcd34d;
+  --color-danger-bg: #3a1520;
+  --color-danger-text: #f5a8bc;
 
   --code-bg: #2a2a32;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 [data-theme='dark'] .route-planner__error {
-  background: #3a1520;
-  color: #f5a8bc;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 [data-theme='dark'] .route-planner__chip--alto {
-  background: #3a1520;
-  color: #f5a8bc;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 [data-theme='dark'] .route-planner__chip--medio {
-  background: #3d2e12;
-  color: #fcd34d;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 [data-theme='dark'] .route-planner__chip--bajo {
-  background: #12321f;
-  color: #86efac;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 [data-theme='dark'] .route-planner__basis--prelim {
@@ -144,6 +175,6 @@ code {
 }
 
 [data-theme='dark'] .login-card__error {
-  background: #3a1520;
-  color: #f5a8bc;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }

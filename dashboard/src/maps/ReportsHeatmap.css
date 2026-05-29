@@ -29,7 +29,7 @@
 .reports-heatmap__legend-title {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--Text-Text-primary-enabled);
+  color: var(--color-text-heading);
 }
 
 .reports-heatmap__legend-bar {

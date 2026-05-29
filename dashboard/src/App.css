@@ -30,7 +30,7 @@
   margin: 0;
   font-size: 2rem;
   font-weight: 700;
-  color: var(--Text-Text-primary-enabled);
+  color: var(--color-text-heading);
 }
 
 .metric-meta {
@@ -199,20 +199,23 @@
 
 .report-status--pendiente,
 .report-status--pending {
-  background: #fef3c7;
-  border-color: #f59e0b;
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-text);
+  color: var(--color-warning-text);
 }
 
 .report-status--confirmado,
 .report-status--verified {
-  background: #dcfce7;
-  border-color: #16a34a;
+  background: var(--color-success-bg);
+  border-color: var(--color-success-text);
+  color: var(--color-success-text);
 }
 
 .report-status--descartado,
 .report-status--rejected {
-  background: #fee2e2;
-  border-color: #dc2626;
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-text);
+  color: var(--color-danger-text);
 }
 
 .report-status--archived {
@@ -231,12 +234,12 @@
 }
 
 .icon-btn--danger {
-  color: #dc2626;
+  color: var(--color-danger-text);
 }
 
 .icon-btn--danger:hover:not(:disabled) {
-  border-color: #dc2626;
-  background: #fee2e2;
+  border-color: var(--color-danger-text);
+  background: var(--color-danger-bg);
 }
 
 .icon-btn:disabled {

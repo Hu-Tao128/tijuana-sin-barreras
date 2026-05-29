@@ -15,12 +15,8 @@
   width: var(--app-shell-sidebar-width);
   height: 100dvh;
   padding: 1.5rem 1rem;
-  background: linear-gradient(
-    180deg,
-    var(--color-sidebar) 0%,
-    var(--Presidencia-700) 55%,
-    var(--color-sidebar-deep) 100%
-  );
+  background: linear-gradient(180deg, var(--color-sidebar) 0%, var(--color-sidebar-deep) 100%);
+  box-shadow: 12px 0 32px var(--color-sidebar-shadow);
   color: var(--color-on-primary);
   overflow: hidden;
 }
@@ -31,7 +27,7 @@
   align-items: center;
   padding: 0.25rem 0.5rem 0.5rem;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid var(--color-sidebar-border);
 }
 
 .app-shell__brand-logo {
@@ -76,12 +72,12 @@
 }
 
 .app-shell__nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-sidebar-hover);
   color: var(--color-on-primary);
 }
 
 .app-shell__nav-link--active {
-  background: var(--Primarios-Guinda-500);
+  background: var(--color-sidebar-active);
   font-weight: 600;
   color: var(--color-on-primary);
 }
@@ -99,7 +95,7 @@
   flex-shrink: 0;
   padding: 0.6rem 0.5rem 0;
   margin-top: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-top: 1px solid var(--color-sidebar-border);
   font-size: 0.72rem;
   opacity: 0.8;
 }
@@ -129,7 +125,7 @@
 
 .app-shell__header h1 {
   margin: 0;
-  color: var(--Text-Text-primary-enabled);
+  color: var(--color-text-heading);
   font-size: 1.3rem;
 }
 
@@ -234,7 +230,7 @@
   color: var(--color-text-strong);
   padding: 0.55rem;
   border-radius: 6px;
-  background: var(--Neutro-Neutro-300);
+  background: var(--bg);
 }
 
 .app-shell__notification-panel li.is-unread {
