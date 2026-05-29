@@ -154,6 +154,149 @@ const result = await archiveReport({reportId: "-OABC123XYZ"});
 
 ---
 
+### `getMyReports`
+
+Lista todos los reportes del usuario autenticado, ordenados del más reciente al más antiguo.
+
+```ts
+const getMyReports = httpsCallable(functions, "getMyReports");
+const result = await getMyReports();
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "reports": [
+    {
+      "id": "-OABC123XYZ",
+      "userId": "abc123",
+      "type": "blocked_ramp",
+      "severity": 8,
+      "description": "Rampa bloqueada",
+      "latitude": 32.5149,
+      "longitude": -117.0382,
+      "status": "pending",
+      "createdAt": 1740000000000
+    }
+  ]
+}
+```
+
+---
+
+### `deleteMyReport`
+
+Elimina un reporte del usuario autenticado. Solo el creador puede eliminar sus propios reportes. También elimina todos los comentarios y confirmaciones asociados. Decrementa el contador `reportCount` del usuario en Firestore.
+
+```ts
+const deleteMyReport = httpsCallable(functions, "deleteMyReport");
+const result = await deleteMyReport({reportId: "-OABC123XYZ"});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `reportId` | `string` | Sí | ID del reporte a eliminar |
+
+**Errores:** `not-found`, `permission-denied` (si no es el creador)
+
+---
+
+## Comentarios
+
+Los comentarios se almacenan en Realtime Database bajo el nodo `comments`. Cualquier usuario autenticado puede comentar en cualquier reporte. Los reportes NO pueden ser modificados por nadie, pero sí pueden recibir comentarios.
+
+### `addComment`
+
+Agrega un comentario a un reporte.
+
+```ts
+const addComment = httpsCallable(functions, "addComment");
+const result = await addComment({
+  reportId: "-OABC123XYZ",
+  text: "Sigue igual desde hace 3 meses, nadie ha hecho nada."
+});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `reportId` | `string` | Sí | ID del reporte |
+| `text` | `string` | Sí | Texto del comentario (máx. 1000 caracteres) |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "comment": {
+    "id": "-ODEF456ABC",
+    "reportId": "-OABC123XYZ",
+    "userId": "abc123",
+    "displayName": "Ángel Alcántara",
+    "text": "Sigue igual desde hace 3 meses...",
+    "createdAt": 1740000000000
+  }
+}
+```
+
+---
+
+### `getReportComments`
+
+Obtiene todos los comentarios de un reporte, ordenados del más antiguo al más reciente.
+
+```ts
+const getReportComments = httpsCallable(functions, "getReportComments");
+const result = await getReportComments({reportId: "-OABC123XYZ"});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `reportId` | `string` | Sí | ID del reporte |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "comments": [
+    {
+      "id": "-ODEF456ABC",
+      "reportId": "-OABC123XYZ",
+      "userId": "abc123",
+      "displayName": "Ángel Alcántara",
+      "text": "Ya lo reporté también.",
+      "createdAt": 1740000000000
+    }
+  ]
+}
+```
+
+---
+
+### `deleteComment`
+
+Elimina un comentario. Solo puede eliminar el autor del comentario, o un moderador/oficial.
+
+```ts
+const deleteComment = httpsCallable(functions, "deleteComment");
+const result = await deleteComment({commentId: "-ODEF456ABC"});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `commentId` | `string` | Sí | ID del comentario a eliminar |
+
+**Errores:** `not-found`, `permission-denied`
+
+---
+
 ## Gemini AI (Visión)
 
 Las funciones de Gemini analizan **fotos** (no texto). Reciben una `photoUrl` de Firebase Storage, descargan la imagen y la envían a Gemini 2.0 Flash Vision.
@@ -445,7 +588,7 @@ await setUserRole({uid: "authUid123", role: "official"});
 
 ### `getCurrentUserProfile`
 
-Obtiene el perfil del usuario autenticado desde Firebase Auth (sin consultar Firestore).
+Obtiene el perfil completo del usuario autenticado combinando datos de Firebase Auth y Firestore.
 
 ```ts
 const result = await httpsCallable(functions, "getCurrentUserProfile")();
@@ -460,9 +603,53 @@ const result = await httpsCallable(functions, "getCurrentUserProfile")();
     "displayName": "Ángel Alcántara",
     "email": "angel@example.com",
     "photoURL": "https://...",
-    "role": "moderator"
+    "phoneNumber": "+526641234567",
+    "emailVerified": true,
+    "disabled": false,
+    "role": "moderator",
+    "isActive": true,
+    "edad": 45,
+    "mobilityProfile": "ambulatory",
+    "maxWalkingMeters": 500,
+    "canClimbStairs": true,
+    "maxStairSteps": 10,
+    "visionProfile": "normal",
+    "transportModes": ["walking"],
+    "needsLowNoise": false,
+    "emergencyContact": {"name": "María", "phone": "+52..."},
+    "preferredLanguage": "es",
+    "reportCount": 12,
+    "verifiedReportCount": 9,
+    "createdAt": 1740000000000,
+    "lastLoginAt": 1740000000000
   }
 }
+```
+
+> Los campos `mobilityProfile`, `visionProfile`, `transportModes`, `emergencyContact`, `edad`, etc. provienen de Firestore. El trigger automático `onUserCreate` los inicializa como `null` o valores por defecto al momento del registro. El usuario debe actualizar su perfil posteriormente con `registerUserProfile`.
+
+---
+
+### Registro automático al crear cuenta
+
+El proyecto incluye un trigger de Firebase Auth (`onUserCreate`) que automáticamente crea un documento en Firestore `users/{uid}` y asigna el custom claim `role: "citizen"` para cada nuevo usuario registrado. No es necesario llamar `registerUserProfile` inmediatamente después del sign-up — el perfil básico ya existe en Firestore.
+
+```ts
+// Mobile: después de sign-in con Google o email, el perfil ya existe en Firestore.
+// Solo necesitas completar el perfil de accesibilidad después:
+
+const registerUserProfile = httpsCallable(functions, "registerUserProfile");
+await registerUserProfile({
+  uid: user.uid,
+  displayName: user.displayName ?? "Usuario",
+  email: user.email ?? "",
+  mobilityProfile: "wheelchair_manual",
+  maxWalkingMeters: 150,
+  canClimbStairs: false,
+  visionProfile: "low_vision",
+  transportModes: ["wheelchair", "adapted_taxi"],
+  preferredLanguage: "es",
+});
 ```
 
 ---
