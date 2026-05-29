@@ -23,9 +23,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Linking } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
-
-import { db } from '../../services/firebase';
+import firestore from '@react-native-firebase/firestore';
 import { DEFAULT_LOCATION } from '../../services/constants';
 import { POINTS_OF_INTEREST, getColorForCategory } from '../../services/points-of-interest';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
@@ -177,11 +175,10 @@ export default function MapScreen() {
     getUserLocation();
 
     try {
-      const reportsRef = collection(db, 'reports');
+      const reportsRef = firestore().collection('reports');
       
       // ✅ SOLUCIÓN: Agregar manejo de errores y timeout
-      const unsubscribe = onSnapshot(
-        reportsRef,
+      const unsubscribe = reportsRef.onSnapshot(
         (snapshot) => {
           console.log('✅ Firestore conectado exitosamente');
           const data: Report[] = [];

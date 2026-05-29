@@ -28,10 +28,8 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { collection, onSnapshot } from 'firebase/firestore';
 import Geolocation from 'react-native-geolocation-service';
-
-import { db } from '../../services/firebase';
+import firestore from '@react-native-firebase/firestore';
 import { searchPlaces, getPlaceDetails } from '../../services/google-places-api';
 import { getRoutes } from '../../services/google-routes-api';
 import {
@@ -402,9 +400,8 @@ export default function RouteScreen() {
   // Cargar reportes de Firestore
   useEffect(() => {
     try {
-      const reportsRef = collection(db, 'reports');
-      const unsubscribe = onSnapshot(
-        reportsRef,
+      const reportsRef = firestore().collection('reports');
+      const unsubscribe = reportsRef.onSnapshot(
         (snapshot) => {
           const data: Report[] = [];
           snapshot.forEach(doc => {
