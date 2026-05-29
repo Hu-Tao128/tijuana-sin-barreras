@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, StyleSheet, View, Button } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Button, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import auth from '@react-native-firebase/auth';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth'; // 👈 Importamos el tipo de usuario
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import MainTabNavigator from './navigation/MainTabNavigator';
@@ -9,15 +9,13 @@ import AuthNavigator from './navigation/AuthNavigator';
 
 export default function App() {
   const [initializing, setInitializing] = useState(true);
-  // Definimos el estado del usuario (puedes cambiar 'any' por el tipo de Firebase si usas TypeScript estricto)
-  const [user, setUser] = useState<any>(null);
+  // El tipado correcto evita usar 'any'
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
 
   useEffect(() => {
     // Configuración de Google
     GoogleSignin.configure({
-      webClientId: '357899360076-ccmhvum5bvpf5lpk7k3pm3f98kthm8c7.apps.googleusercontent.com', 
-      // El webClientId lo encuentras en tu archivo google-services.json 
-      // dentro del objeto "oauth_client" que tiene el "client_type": 3
+      webClientId: "1:357899360076:web:7caee8289c0f002ceea1e9.apps.googleusercontent.com"
     });
 
     // Escuchar cambios en el estado de autenticación de Firebase
@@ -26,17 +24,31 @@ export default function App() {
       if (initializing) setInitializing(false);
     });
     
-    return subscriber; // Desuscribirse al desmontar
+    // Se deja el arreglo vacío [] para que solo se ejecute una vez al montar
+    return subscriber; 
   }, [initializing]);
 
-  if (initializing) return null; // O una pantalla de carga/spinner alternativo
+  // Cambiado de 'null' a un Spinner para que el usuario no vea una pantalla negra mientras carga
+  if (initializing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#611232" />
+      </View>
+    );
+  }
 
-  // Función de apoyo para cerrar sesión real desde el botón de desarrollo
   const handleLogout = async () => {
     try {
+      // 1. Cerramos sesión en Firebase
       await auth().signOut();
-      // Opcional: también puedes desloguear de Google si lo deseas
-      // await GoogleSignin.signOut(); 
+
+      // 2. Cerramos sesión en Google de forma directa y segura
+      try {
+        await GoogleSignin.signOut();
+      } catch {
+        // Si el usuario no estaba logueado con Google, ignoramos el error de forma silenciosa
+        console.log("No había sesión activa de Google para cerrar.");
+      }
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
     }
@@ -47,17 +59,6 @@ export default function App() {
       <NavigationContainer>
         {user ? <MainTabNavigator /> : <AuthNavigator />}
       </NavigationContainer>
-
-      {/* BOTÓN TEMPORAL DE CONTROL DE FLUJO (Eliminar o comentar en producción) */}
-      {user && (
-        <View style={styles.devTrigger}>
-          <Button 
-            title="Cerrar Sesión (Firebase)" 
-            color="#ff3b30"
-            onPress={handleLogout} 
-          />
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -66,15 +67,21 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1 
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF'
+  },
   devTrigger: {
     position: 'absolute',
-    bottom: 70, // Posicionado arriba del menú de pestañas para pruebas
+    bottom: 80, // Subido ligeramente para que libre la barra del MainTabNavigator de 66px-88px
     left: 20,
     right: 20,
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 8,
     padding: 5,
     elevation: 10,
-    zIndex: 999, // Asegura que quede por encima de la navegación
+    zIndex: 999,
   }
 });

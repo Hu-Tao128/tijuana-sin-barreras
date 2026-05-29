@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, FlatList, Alert } from 'react-native';
+import auth from '@react-native-firebase/auth'; // 👈 Importamos el módulo de autenticación
 import Button from '../../components/Button';
 import CardReport from '../../components/CardReport';
 
-// Datos ficticios iniciales para simular los reportes de Tijuana
 const RECENT_REPORTS = [
   {
     id: '1',
@@ -29,18 +29,36 @@ const RECENT_REPORTS = [
 ];
 
 export default function HomeScreen({ navigation }: any) {
-  
-  // Función para redirigir a la pestaña de reportes
+  // Estado para almacenar el nombre que mostraremos en la bienvenida
+  const [userName, setUserName] = useState('Ciudadano');
+
+  useEffect(() => {
+    // 1. Obtenemos el usuario que actualmente tiene la sesión activa en el dispositivo
+    const currentUser = auth().currentUser;
+
+    if (currentUser) {
+      // 2. Si el usuario se registró guardando su "displayName", lo usamos.
+      // Si no tiene "displayName" pero sí correo, limpiamos el correo para extraer la primera parte antes del '@'.
+      if (currentUser.displayName) {
+        setUserName(currentUser.displayName);
+      } else if (currentUser.email) {
+        const emailName = currentUser.email.split('@')[0];
+        // Capitalizamos la primera letra para que se vea estético (ej: "juan.perez" -> "Juan.perez")
+        setUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
+      }
+    }
+  }, []); // Se ejecuta únicamente cuando la pantalla se monta
+
   const handleGoToReport = () => {
     navigation.navigate('Report');
   };
 
-  // Renderizador del encabezado y contadores (para usar dentro de la FlatList)
+  // Modificamos el renderHeader para usar la variable de estado 'userName'
   const renderHeader = () => (
     <View>
-      {/* 1. Encabezado */}
+      {/* 1. Encabezado Personalizado */}
       <View style={styles.headerContainer}>
-        <Text style={styles.welcomeText}>Hola, Ciudadano 👋</Text>
+        <Text style={styles.welcomeText}>Hola, {userName} 👋</Text>
         <Text style={styles.appTitle}>Tijuana Sin Barreras</Text>
       </View>
 
@@ -70,7 +88,6 @@ export default function HomeScreen({ navigation }: any) {
         />
       </View>
 
-      {/* Título del Feed */}
       <Text style={[styles.sectionTitle, { marginTop: 15 }]}>Reportes recientes en la comunidad</Text>
     </View>
   );

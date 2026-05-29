@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -8,28 +8,146 @@ import {
   ScrollView, 
   Image, 
   Alert,
-  StatusBar
+  StatusBar,
+  TextInput
 } from 'react-native';
 import Button from '../../components/Button';
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore'; 
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import functions from '@react-native-firebase/functions';
 
 export default function ProfileScreen() {
-  // Estados para controlar las preferencias de accesibilidad (Checkboxes)
-  const [useWheelchair, setUseWheelchair] = useState(true);
-  const [visualImpairment, setVisualImpairment] = useState(false);
+  const [, setLoading] = useState(true);
+
+  // 1. Datos de Cuenta Básicos
+  const [name, setName] = useState('Usuario');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('citizen');
+
+  // 2. Perfil de Accesibilidad de Ruteo (Campos Oficiales del Backend)
+  const [mobilityProfile, setMobilityProfile] = useState<'ambulatory' | 'wheelchair'>('ambulatory');
+  const [visionProfile, setVisionProfile] = useState<'normal' | 'low_vision' | 'blind'>('normal');
+  const [maxWalkingMeters, setMaxWalkingMeters] = useState<number>(500);
+  const [canClimbStairs, setCanClimbStairs] = useState<boolean>(true);
+  const [maxStairSteps, setMaxStairSteps] = useState<number>(10);
+  const [needsLowNoise, setNeedsLowNoise] = useState<boolean>(false);
+
+  // 3. Contacto de Emergencia Estructurado
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
+
+  // 4. Datos adicionales del Modelo
+  const [reportCount, setReportCount] = useState(0);
+
+  useEffect(() => {
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    setEmail(currentUser.email || '');
+    setName(currentUser.displayName || 'Ciudadano');
+
+    // Escuchamos en tiempo real el documento que la función 'registerUserProfile' gestiona
+    const unsubscribe = firestore()
+      .collection('users')
+      .doc(currentUser.uid)
+      .onSnapshot((doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          if (data) {
+            setRole(data.role || 'citizen');
+            setMobilityProfile(data.mobilityProfile || 'ambulatory');
+            setVisionProfile(data.visionProfile || 'normal');
+            setMaxWalkingMeters(data.maxWalkingMeters ?? 500);
+            setCanClimbStairs(data.canClimbStairs ?? true);
+            setMaxStairSteps(data.maxStairSteps ?? 10);
+            setNeedsLowNoise(data.needsLowNoise ?? false);
+            setReportCount(data.reportCount || 0);
+            
+            if (data.emergencyContact) {
+              setEmergencyName(data.emergencyContact.name || '');
+              setEmergencyPhone(data.emergencyContact.phone || '');
+            }
+          }
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error("Error al escuchar perfil: ", error);
+        setLoading(false);
+      });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
     try {
-        await GoogleSignin.signOut(); // Desconecta la sesión de Google
-        await auth().signOut();       // Desconecta Firebase
+      if (await GoogleSignin.hasPreviousSignIn()) {
+        await GoogleSignin.signOut();
+      }
+      await auth().signOut();       
     } catch {
-        Alert.alert('Error al cerrar sesión');
+      Alert.alert('Error al cerrar sesión');
     }
   };
 
-  const handleSaveChanges = () => {
-    Alert.alert('Éxito', 'Cambios de perfil guardados correctamente.');
+  // Guardado respetando la estructura exacta demandada por el ruteo
+  // 2. FUNCIÓN DE GUARDADO ACTUALIZADA AL MODELO OFICIAL
+  const handleSaveChanges = async () => {
+    const currentUser = auth().currentUser;
+    
+    if (!currentUser) {
+      Alert.alert('Error', 'No hay ninguna sesión activa.');
+      return;
+    }
+
+    setLoading(true); // Mostramos el indicador de carga mientras el servidor procesa
+
+    try {
+      // Conectamos con la función alojada en tu Firebase
+      const registerUserProfile = functions().httpsCallable('registerUserProfile');
+
+      // Enviamos el paquete de parámetros EXACTO que pide tu tabla de especificaciones
+      const response = await registerUserProfile({
+        uid: currentUser.uid,                             // Requerido
+        displayName: name || currentUser.displayName,       // Requerido
+        email: currentUser.email,                          // Requerido
+        phoneNumber: emergencyPhone ? currentUser.phoneNumber : undefined, 
+        edad: 25, // 💡 Nota: Puedes agregar un useState para capturar la edad real en la UI si lo deseas
+        role: role, // Mantiene el rol actual (citizen por defecto)
+        mobilityProfile: mobilityProfile,
+        maxWalkingMeters: Number(maxWalkingMeters),
+        canClimbStairs: canClimbStairs,
+        maxStairSteps: canClimbStairs ? Number(maxStairSteps) : 0,
+        visionProfile: visionProfile,
+        transportModes: mobilityProfile === 'wheelchair' ? ['wheelchair', 'public_transport'] : ['walking', 'public_transport'],
+        needsLowNoise: needsLowNoise,
+        emergencyContact: {
+          name: emergencyName,
+          phone: emergencyPhone
+        },
+        preferredLanguage: "es"
+      });
+
+      // Validamos la respuesta que nos da tu Backend en el JSON
+      if (response.data && (response.data as any).success) {
+        Alert.alert('¡Excelente!', 'Tu perfil de accesibilidad ha sido creado y sincronizado en Tijuana sin Barreras.');
+      } else {
+        Alert.alert('Aviso', 'El perfil se procesó pero no recibimos confirmación de éxito.');
+      }
+
+    } catch (error: any) {
+  console.error("Error al ejecutar registerUserProfile:", error);
+  // Reemplaza temporalmente tu alerta por esta para ver el culpable real:
+  Alert.alert(
+    'Detalle del Error', 
+    `Código: ${error.code}\nMensaje: ${error.message}`
+  );
+} finally {
+      setLoading(false); // Apagamos el indicador de carga
+    }
   };
 
   return (
@@ -38,161 +156,148 @@ export default function ProfileScreen() {
       
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* 1. SECCIÓN DE AVATAR E INFORMACIÓN PERSONAL */}
+        {/* 1. SECCIÓN DE AVATAR E INFORMACIÓN DE ROL */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
             <Image 
               source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80' }} 
               style={styles.avatar} 
             />
-            <TouchableOpacity style={styles.editBadge} activeOpacity={0.8} onPress={() => Alert.alert('Cambiar Foto', 'Abrir galería...')}>
-              <Text style={styles.editIcon}>✏️</Text>
-            </TouchableOpacity>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>{role.toUpperCase()}</Text>
+            </View>
           </View>
-          <Text style={styles.userName}>Mariana Ortiz</Text>
-          <Text style={styles.userMeta}>Colaboradora desde 2023 • Tijuana, BC</Text>
+          <Text style={styles.userName}>{name}</Text>
+          <Text style={styles.userMeta}>{email}</Text>
+          <Text style={styles.reportCounter}>📊 {reportCount} Reportes Generados</Text>
         </View>
 
-        {/* 2. PREFERENCIAS DE ACCESIBILIDAD */}
+        {/* 2. CONFIGURACIÓN DEL PERFIL DE MOVILIDAD */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Preferencias de Accesibilidad</Text>
-          
-          {/* Opción 1: Silla de ruedas */}
+          <Text style={styles.sectionTitle}>Perfil de Movilidad</Text>
+          <Text style={styles.sectionSubtitle}>Define cómo te desplazas para calcular la ruta óptima.</Text>
+
+          {/* Opción Ambulatorio */}
           <TouchableOpacity 
-            style={styles.checkboxRow} 
-            activeOpacity={0.7} 
-            onPress={() => setUseWheelchair(!useWheelchair)}
+            style={styles.radioRow} 
+            onPress={() => setMobilityProfile('ambulatory')}
           >
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowIcon}>♿</Text>
-              <Text style={styles.rowText}>Uso silla de ruedas</Text>
-            </View>
-            <View style={[styles.checkbox, useWheelchair && styles.checkboxChecked]}>
-              {useWheelchair && <Text style={styles.checkmark}>✓</Text>}
-            </View>
+            <Text style={styles.rowText}>🚶 Ambulatorio (A pie)</Text>
+            <View style={[styles.radio, mobilityProfile === 'ambulatory' && styles.radioChecked]} />
           </TouchableOpacity>
 
-          {/* Opción 2: Discapacidad Visual */}
+          {/* Opción Silla de Ruedas */}
           <TouchableOpacity 
-            style={styles.checkboxRow} 
-            activeOpacity={0.7} 
-            onPress={() => setVisualImpairment(!visualImpairment)}
+            style={styles.radioRow} 
+            onPress={() => setMobilityProfile('wheelchair')}
           >
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowIcon}>👁️‍🗨️</Text>
-              <Text style={styles.rowText}>Tengo discapacidad visual</Text>
-            </View>
-            <View style={[styles.checkbox, visualImpairment && styles.checkboxChecked]}>
-              {visualImpairment && <Text style={styles.checkmark}>✓</Text>}
-            </View>
+            <Text style={styles.rowText}>♿ Uso Silla de Ruedas</Text>
+            <View style={[styles.radio, mobilityProfile === 'wheelchair' && styles.radioChecked]} />
           </TouchableOpacity>
         </View>
 
-        {/* 3. LUGARES GUARDADOS */}
+        {/* 3. PARÁMETROS DE RUTEO FÍSICO */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Lugares Guardados</Text>
+          <Text style={styles.sectionTitle}>Límites y Capacidades de Ruta</Text>
           
-          <View style={styles.placeRow}>
-            <Text style={styles.placeIcon}>🏠</Text>
-            <View style={styles.placeTextContainer}>
-              <Text style={styles.placeName}>Casa</Text>
-              <Text style={styles.placeSub}>Zona Centro</Text>
-            </View>
-          </View>
+          <Text style={styles.inputLabel}>Distancia máxima de caminata sin pausa (metros):</Text>
+          <TextInput
+            style={styles.textInput}
+            keyboardType="numeric"
+            value={maxWalkingMeters.toString()}
+            onChangeText={(val) => setMaxWalkingMeters(Number(val) || 0)}
+          />
 
-          <View style={styles.placeRow}>
-            <Text style={styles.placeIcon}>💼</Text>
-            <View style={styles.placeTextContainer}>
-              <Text style={styles.placeName}>Trabajo</Text>
-              <Text style={styles.placeSub}>Vía Corporativo</Text>
+          <TouchableOpacity 
+            style={styles.checkboxRow} 
+            onPress={() => setCanClimbStairs(!canClimbStairs)}
+          >
+            <Text style={styles.rowText}>¿Puedes subir escaleras?</Text>
+            <View style={[styles.checkbox, canClimbStairs && styles.checkboxChecked]}>
+              {canClimbStairs && <Text style={styles.checkmark}>✓</Text>}
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.placeRow}>
-            <Text style={styles.placeIcon}>🏥</Text>
-            <View style={styles.placeTextContainer}>
-              <Text style={styles.placeName}>IMSS</Text>
-              <Text style={styles.placeSub}>Clínica 7</Text>
+          {canClimbStairs && (
+            <>
+              <Text style={styles.inputLabel}>Máximo de escalones permitidos por tramo:</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                value={maxStairSteps.toString()}
+                onChangeText={(val) => setMaxStairSteps(Number(val) || 0)}
+              />
+            </>
+          )}
+
+          <TouchableOpacity 
+            style={styles.checkboxRow} 
+            onPress={() => setNeedsLowNoise(!needsLowNoise)}
+          >
+            <Text style={styles.rowText}>🔇 Evitar zonas ruidosas u obras</Text>
+            <View style={[styles.checkbox, needsLowNoise && styles.checkboxChecked]}>
+              {needsLowNoise && <Text style={styles.checkmark}>✓</Text>}
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        {/* 4. SECCIÓN DE EMERGENCIA */}
+        {/* 4. PERFIL VISUAL */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Contactos de Emergencia</Text>
-          <Text style={styles.sectionSubtitle}>Acceso rápido durante la navegación en rutas.</Text>
+          <Text style={styles.sectionTitle}>Perfil de Visión</Text>
           
-          {/* Reutilización de la variante secundaria de tu componente global */}
-          <Button 
-            title="+ Agregar Contacto"
-            onPress={() => Alert.alert('Contacto', 'Formulario para nuevo contacto...')}
-            variant="secondary"
+          {/* Normal */}
+          <TouchableOpacity style={styles.radioRow} onPress={() => setVisionProfile('normal')}>
+            <Text style={styles.rowText}>👁️ Visión Estándar</Text>
+            <View style={[styles.radio, visionProfile === 'normal' && styles.radioChecked]} />
+          </TouchableOpacity>
+
+          {/* Baja Visión */}
+          <TouchableOpacity style={styles.radioRow} onPress={() => setVisionProfile('low_vision')}>
+            <Text style={styles.rowText}>👓 Baja Visión</Text>
+            <View style={[styles.radio, visionProfile === 'low_vision' && styles.radioChecked]} />
+          </TouchableOpacity>
+
+          {/* Ceguera */}
+          <TouchableOpacity style={styles.radioRow} onPress={() => setVisionProfile('blind')}>
+            <Text style={styles.rowText}>🦯 Ceguera total / Bastón Guiador</Text>
+            <View style={[styles.radio, visionProfile === 'blind' && styles.radioChecked]} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 5. CONTACTO DE EMERGENCIA OFICIAL */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Contacto de Emergencia</Text>
+          <Text style={styles.sectionSubtitle}>Datos obligatorios para la red de apoyo en trayectos.</Text>
+          
+          <Text style={styles.inputLabel}>Nombre del Contacto:</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Ej: María Alcántara"
+            value={emergencyName}
+            onChangeText={setEmergencyName}
+          />
+
+          <Text style={styles.inputLabel}>Teléfono de Contacto:</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Ej: +526641234567"
+            keyboardType="phone-pad"
+            value={emergencyPhone}
+            onChangeText={setEmergencyPhone}
           />
         </View>
 
-        {/* 5. MIS REPORTES */}
-        <View style={styles.sectionCard}>
-          <View style={styles.reportsHeader}>
-            <Text style={styles.sectionTitle}>Mis Reportes</Text>
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>12 Reportes</Text>
-            </View>
-          </View>
-
-          {/* Reporte 1 */}
-          <View style={[styles.reportItem, { borderLeftColor: '#9B2247' }]}>
-            <View style={styles.reportMain}>
-              <Text style={styles.reportTitle}>Rampa Destruida</Text>
-              <Text style={styles.reportAddress}>Calle 4ta y Av. Revolución</Text>
-            </View>
-            <View style={[styles.statusBadge, styles.badgeReview]}>
-              <Text style={styles.statusTextReview}>EN REVISIÓN</Text>
-            </View>
-          </View>
-
-          {/* Reporte 2 */}
-          <View style={[styles.reportItem, { borderLeftColor: '#611232' }]}>
-            <View style={styles.reportMain}>
-              <Text style={styles.reportTitle}>Parada de Autobús Accesible</Text>
-              <Text style={styles.reportAddress}>Paseo de los Héroes</Text>
-            </View>
-            <View style={[styles.statusBadge, styles.badgeVerified]}>
-              <Text style={styles.statusTextVerified}>VERIFICADO</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 6. BOTONES DE ACCIÓN INFERIORES */}
+        {/* 6. ACCIONES DE GUARDADO */}
         <View style={styles.actionContainer}>
           <Button 
-            title="Guardar Cambios" 
+            title="Sincronizar Perfil de Ruteo" 
             onPress={handleSaveChanges} 
             variant="primary"
           />
           
-          <TouchableOpacity 
-            style={styles.logoutButton} 
-            activeOpacity={0.6}
-            onPress={() => 
-                Alert.alert(
-                'Cerrar Sesión', 
-                '¿Estás seguro de que quieres salir?',
-                [
-                    {
-                    text: 'Cancelar',
-                    style: 'cancel', // Le da un estilo sutil en iOS
-                    },
-                    {
-                    text: 'Salir',
-                    style: 'destructive', // Lo pinta de rojo en iOS para indicar acción irreversible
-                    onPress: handleLogout, // <-- Aquí llamamos a tu función de Firebase/Google
-                    },
-                ]
-                )
-            }
-            >
-            <Text style={styles.logoutText}>Cerrar Sesión</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.6} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Cerrar Sesión de la App</Text>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
@@ -201,234 +306,32 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F3F3F3', // --Neutro-Neutro-300
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  // Perfil Superior
-  avatarSection: {
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#611232', // --Presidencia-principal-600
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#611232', // --Presidencia-principal-600
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
-  editIcon: {
-    fontSize: 14,
-    color: '#FFF',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#161A1D', // --Neutro-Neutro-800
-    letterSpacing: -0.5,
-  },
-  userMeta: {
-    fontSize: 13,
-    color: '#767676', // --Neutro-Neutro-600
-    marginTop: 4,
-  },
-  // Contenedores de Bloques (Tarjetas Blancas)
-  sectionCard: {
-    backgroundColor: '#FFF', // --Neutro-Neutro-100
-    borderRadius: 14,
-    padding: 16,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#DDD', // --Neutro-Neutro-400
-    elevation: 2,
-    shadowColor: '#161A1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#611232', // --Presidencia-principal-600
-    marginBottom: 14,
-    letterSpacing: -0.2,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#767676', // --Neutro-Neutro-600
-    marginBottom: 16,
-  },
-  // Filas con Checkbox
-  checkboxRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#DDD', // --Neutro-Neutro-400
-    borderRadius: 10,
-    padding: 14,
-    marginVertical: 6,
-  },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rowIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  rowText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#434343', // --Neutro-Neutro-700
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#DDD',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-  },
-  checkboxChecked: {
-    backgroundColor: '#611232', // --Presidencia-principal-600
-    borderColor: '#611232',
-  },
-  checkmark: {
-    color: '#FFF',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  // Filas de Lugares Guardados
-  placeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F3F3',
-  },
-  placeIcon: {
-    fontSize: 20,
-    marginRight: 16,
-  },
-  placeTextContainer: {
-    flex: 1,
-  },
-  placeName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#161A1D', // --Neutro-Neutro-800
-  },
-  placeSub: {
-    fontSize: 12,
-    color: '#767676', // --Neutro-Neutro-600
-    marginTop: 2,
-  },
-  // Elementos de la lista de Reportes
-  reportsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  countBadge: {
-    backgroundColor: '#F3F3F3',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DDD',
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#434343',
-  },
-  reportItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderLeftWidth: 4,
-    borderRadius: 8,
-    padding: 14,
-    marginVertical: 6,
-  },
-  reportMain: {
-    flex: 1,
-    marginRight: 10,
-  },
-  reportTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#161A1D',
-  },
-  reportAddress: {
-    fontSize: 12,
-    color: '#767676',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  badgeReview: {
-    backgroundColor: '#FDECEF',
-  },
-  badgeVerified: {
-    backgroundColor: '#611232',
-  },
-  statusTextReview: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#9B2247', // --Primarios-Guinda-500
-  },
-  statusTextVerified: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  // Botones de acción finales
-  actionContainer: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  logoutButton: {
-    paddingVertical: 14,
-    marginTop: 8,
-    width: '100%',
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: '#9B2247', // Un guinda vivo para la alerta de salida en lugar de un rojo chillón
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  container: { flex: 1, backgroundColor: '#F3F3F3' },
+  scrollContent: { padding: 24, paddingBottom: 40 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F3F3' },
+  loadingText: { marginTop: 10, fontSize: 14, color: '#767676', fontWeight: '500' },
+  avatarSection: { alignItems: 'center', marginVertical: 16 },
+  avatarContainer: { position: 'relative', marginBottom: 12 },
+  avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#611232' },
+  roleBadge: { position: 'absolute', bottom: -6, backgroundColor: '#611232', paddingHorizontal: 12, paddingVertical: 2, borderRadius: 10 },
+  roleText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  userName: { fontSize: 22, fontWeight: 'bold', color: '#161A1D', marginTop: 8 },
+  userMeta: { fontSize: 13, color: '#767676', marginTop: 2 },
+  reportCounter: { fontSize: 13, fontWeight: '600', color: '#9B2247', marginTop: 6 },
+  sectionCard: { backgroundColor: '#FFF', borderRadius: 14, padding: 16, marginVertical: 8, borderWidth: 1, borderColor: '#DDD', elevation: 2 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#611232' },
+  sectionSubtitle: { fontSize: 12, color: '#767676', marginBottom: 12, marginTop: 2 },
+  rowText: { fontSize: 14, fontWeight: '600', color: '#434343' },
+  inputLabel: { fontSize: 13, color: '#767676', marginTop: 10, marginBottom: 4, fontWeight: '500' },
+  textInput: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 14, color: '#161A1D' },
+  checkboxRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#DDD', justifyContent: 'center', alignItems: 'center' },
+  checkboxChecked: { backgroundColor: '#611232', borderColor: '#611232' },
+  checkmark: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
+  radioRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F3F3' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#DDD' },
+  radioChecked: { backgroundColor: '#611232', borderColor: '#611232' },
+  actionContainer: { marginTop: 16, alignItems: 'center' },
+  logoutButton: { paddingVertical: 14, marginTop: 8, width: '100%', alignItems: 'center' },
+  logoutText: { color: '#9B2247', fontSize: 15, fontWeight: '700' },
 });

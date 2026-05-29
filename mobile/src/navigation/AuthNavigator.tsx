@@ -8,6 +8,7 @@ const Stack = createNativeStackNavigator();
 export default function AuthNavigator() {
   return (
     <Stack.Navigator
+      id="auth_stack"
       screenOptions={{
         headerShown: false, // Ocultamos la barra superior en el login/registro
       }}

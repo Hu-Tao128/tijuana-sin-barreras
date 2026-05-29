@@ -21,3 +21,18 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects { project ->
+    if (project.name == "app") {
+        android {
+            defaultConfig {
+                // Esto redirige los archivos kilométricos de CMake/Ninja a C:/tmp/cxx
+                externalNativeBuild {
+                    cmake {
+                        arguments "-DCMAKE_BINARY_DIR=C:/tmp/cxx"
+                    }
+                }
+            }
+        }
+    }
+}

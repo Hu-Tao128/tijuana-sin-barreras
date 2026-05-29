@@ -46,6 +46,7 @@ const CustomMapTabButton = ({ onPress }: any) => (
 export default function MainTabNavigator() {
   return (
     <Tab.Navigator
+      id="main_tabs"
       screenOptions={({ route }) => ({
         // Configuración de Iconos por defecto
         tabBarIcon: ({ focused }) => getTabBarIcon(route.name, focused),
