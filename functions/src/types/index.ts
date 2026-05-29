@@ -8,4 +8,5 @@ export type {Location} from "./Location";
 export type {User, EmergencyContact} from "./User";
 export type {Report} from "./Report";
 export type {Confirmation} from "./Confirmation";
+export type {Comment} from "./Comment";
 export {AccessibilityPenalty} from "./AccessibilityScore";

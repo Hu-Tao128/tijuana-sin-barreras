@@ -11,6 +11,11 @@ export {createReport} from "./reports/createReport";
 export {confirmReport} from "./reports/confirmReport";
 export {rejectReport} from "./reports/rejectReport";
 export {archiveReport} from "./reports/archiveReport";
+export {getMyReports} from "./reports/getMyReports";
+export {deleteMyReport} from "./reports/deleteMyReport";
+export {addComment} from "./reports/addComment";
+export {getReportComments} from "./reports/getReportComments";
+export {deleteComment} from "./reports/deleteComment";
 
 export {classifyBarrierCallable} from "./gemini/classifyBarrier";
 export {detectSpamCallable} from "./gemini/detectSpam";
