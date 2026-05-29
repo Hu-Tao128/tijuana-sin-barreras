@@ -15,7 +15,6 @@ export {
   createReport,
   deleteReport,
   setReportStatus,
-  seedDemoReports,
   type NewReportInput,
 } from './reports'
 export {

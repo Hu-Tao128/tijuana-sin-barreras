@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAppSettings } from '../../contexts/AppSettingsContext'
 import { useProfile } from '../../contexts/ProfileContext'
-import { seedDemoReports } from '../../services'
 import '../../App.css'
 
 export function Configuracion() {
@@ -10,9 +9,6 @@ export function Configuracion() {
   const { photoUrl, setPhoto } = useProfile()
   const { language, setLanguage, darkMode, setDarkMode, t } = useAppSettings()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [seedMessage, setSeedMessage] = useState<string | null>(null)
-  const [seedError, setSeedError] = useState<string | null>(null)
-  const [isSeeding, setIsSeeding] = useState(false)
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -20,20 +16,6 @@ export function Configuracion() {
     const reader = new FileReader()
     reader.onload = () => setPhoto(reader.result as string)
     reader.readAsDataURL(file)
-  }
-
-  async function handleSeedDemo() {
-    setSeedMessage(null)
-    setSeedError(null)
-    setIsSeeding(true)
-    try {
-      const count = await seedDemoReports(user?.uid ?? 'demo-seed')
-      setSeedMessage(t('settings.seedDone', { count }))
-    } catch {
-      setSeedError(t('settings.seedError'))
-    } finally {
-      setIsSeeding(false)
-    }
   }
 
   return (
@@ -121,25 +103,6 @@ export function Configuracion() {
             <span className="toggle__thumb" />
           </button>
         </div>
-      </article>
-
-      <article className="dashboard-card">
-        <h2>{t('settings.demoData')}</h2>
-        <p className="metric-meta">{t('settings.demoDataMeta')}</p>
-        <button
-          type="button"
-          className="primary-btn"
-          disabled={isSeeding}
-          onClick={() => void handleSeedDemo()}
-        >
-          {isSeeding ? t('settings.seeding') : t('settings.seedButton')}
-        </button>
-        {seedMessage && <p className="metric-meta">{seedMessage}</p>}
-        {seedError && (
-          <p className="login-card__error" role="alert">
-            {seedError}
-          </p>
-        )}
       </article>
     </div>
   )
