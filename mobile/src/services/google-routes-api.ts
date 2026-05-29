@@ -11,13 +11,33 @@
 
 const FETCH_TIMEOUT_MS = 15000;
 
-function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response> {
-  return Promise.race([
-    fetch(url, options),
-    new Promise<Response>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), FETCH_TIMEOUT_MS),
-    ),
-  ]);
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit,
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = options?.signal;
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+  }
+
+  const requestOptions: RequestInit = {
+    ...options,
+    signal: controller.signal,
+  };
+
+  try {
+    return await fetch(url, requestOptions);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 interface Coordinate {
@@ -133,7 +153,8 @@ export async function getRoutes(
   origin: { latitude: number; longitude: number },
   destination: { latitude: number; longitude: number },
   apiKey: string,
-  avoidPoints: { latitude: number; longitude: number }[] = []
+  avoidPoints: { latitude: number; longitude: number }[] = [],
+  signal?: AbortSignal,
 ) {
   const body: Record<string, unknown> = {
     origin: {
@@ -177,6 +198,7 @@ export async function getRoutes(
             'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.duration,routes.legs.distanceMeters,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.startLocation,routes.legs.steps.endLocation',
         },
         body: JSON.stringify(body),
+        signal,
       },
     );
 
@@ -200,6 +222,10 @@ export async function getRoutes(
       routes: data.routes.map((r: RawRoute) => normalizeRoute(r)),
     };
   } catch (error) {
+    if ((error as Error)?.name === 'AbortError') {
+      console.warn('[Routes API] Solicitud cancelada');
+      throw error;
+    }
     console.error('[Routes API] Error en la solicitud:', error);
     return null;
   }

@@ -175,7 +175,7 @@ const RouteSearchModal = ({
         } else if (result.error_message) {
           Alert.alert('Error API', result.error_message);
         }
-      } catch (error) {
+      } catch {
         Alert.alert('Error', 'No se pudieron cargar las predicciones');
       }
       setLoadingOrigin(false);
@@ -193,7 +193,7 @@ const RouteSearchModal = ({
         } else if (result.error_message) {
           Alert.alert('Error API', result.error_message);
         }
-      } catch (error) {
+      } catch {
         Alert.alert('Error', 'No se pudieron cargar las predicciones');
       }
       setLoadingDest(false);
@@ -227,7 +227,7 @@ const RouteSearchModal = ({
         setDestQuery(place.mainText);
         setDestPredictions([]);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Error al obtener detalles del lugar');
     }
   };
@@ -282,6 +282,14 @@ const RouteSearchModal = ({
               </TouchableOpacity>
             </View>
 
+            <TouchableOpacity
+              style={modalStyles.currentLocationRow}
+              onPress={() => selectCurrentLocation('origin')}
+            >
+              <Ionicons name="locate" size={16} color="#3b82f6" />
+              <Text style={modalStyles.currentLocationText}>Usar mi ubicación actual</Text>
+            </TouchableOpacity>
+
             {loadingOrigin && <ActivityIndicator size="small" color="#3b82f6" />}
 
             {originPredictions.length > 0 && (
@@ -326,6 +334,14 @@ const RouteSearchModal = ({
                 <Ionicons name="locate" size={20} color="#3b82f6" />
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              style={modalStyles.currentLocationRow}
+              onPress={() => selectCurrentLocation('destination')}
+            >
+              <Ionicons name="locate" size={16} color="#3b82f6" />
+              <Text style={modalStyles.currentLocationText}>Usar mi ubicación actual</Text>
+            </TouchableOpacity>
 
             {loadingDest && <ActivityIndicator size="small" color="#3b82f6" />}
 
@@ -395,6 +411,7 @@ const RouteSearchModal = ({
 export default function RouteScreen() {
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [routes, setRoutes] = useState<any[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
@@ -405,7 +422,55 @@ export default function RouteScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [mapRegion, setMapRegion] = useState<MapRegion>(DEFAULT_LOCATION);
 
+  const mapRef = useRef<MapView | null>(null);
   const cancelRef = useRef(false);
+  const routeRequestControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const requestCurrentLocation = async () => {
+      try {
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) return;
+        }
+
+        Geolocation.getCurrentPosition(
+          (position) => {
+            if (!mounted) return;
+
+            const currentLocation = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+
+            setUserLocation(currentLocation);
+            setMapRegion((previous) => ({
+              ...previous,
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+            }));
+          },
+          (error) => {
+            console.log('RouteScreen geolocation error:', error);
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+        );
+      } catch (error) {
+        console.log('RouteScreen location request error:', error);
+      }
+    };
+
+    requestCurrentLocation();
+
+    return () => {
+      mounted = false;
+      routeRequestControllerRef.current?.abort();
+    };
+  }, []);
 
   // Cargar reportes de Realtime Database
   useEffect(() => {
@@ -448,6 +513,9 @@ export default function RouteScreen() {
     if (!origin || !destination) return;
 
     cancelRef.current = false;
+    routeRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    routeRequestControllerRef.current = controller;
     setLoading(true);
     try {
       const originCoords = {
@@ -459,7 +527,13 @@ export default function RouteScreen() {
         longitude: destination.longitude!,
       };
 
-      const routeData = await getRoutes(originCoords, destCoords, GOOGLE_ROUTES_API_KEY);
+      const routeData = await getRoutes(
+        originCoords,
+        destCoords,
+        GOOGLE_ROUTES_API_KEY,
+        [],
+        controller.signal,
+      );
 
       if (cancelRef.current) return;
       
@@ -467,85 +541,54 @@ export default function RouteScreen() {
         setRoutes(routeData.routes);
         setSelectedRouteIndex(0);
 
-        setMapRegion({
-          latitude: (origin.latitude! + destination.latitude!) / 2,
-          longitude: (origin.longitude! + destination.longitude!) / 2,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        });
+        const coordinatesToFit = [
+          originCoords,
+          destCoords,
+          ...(routeData.routes[0].polyline?.encodedPolyline
+            ? decodePolyline(routeData.routes[0].polyline.encodedPolyline)
+            : []),
+        ];
+
+        if (coordinatesToFit.length >= 2) {
+          requestAnimationFrame(() => {
+            mapRef.current?.fitToCoordinates(coordinatesToFit, {
+              edgePadding: { top: 120, right: 48, bottom: 220, left: 48 },
+              animated: true,
+            });
+          });
+        } else {
+          setMapRegion({
+            latitude: (origin.latitude! + destination.latitude!) / 2,
+            longitude: (origin.longitude! + destination.longitude!) / 2,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+        }
 
         const mainRoute = routeData.routes[0];
         const steps: RouteStep[] = mainRoute.legs.flatMap((leg: any) => leg.steps);
         const analysis = analyzeRoute(steps, reports);
         if (!cancelRef.current) {
           setAnalysisResult(analysis);
-          Alert.alert('✅ Rutas encontradas', `Se encontraron ${routeData.routes.length} ruta(s) disponibles`);
+          setSearchModalVisible(false);
         }
       } else if (!cancelRef.current) {
         Alert.alert('Error', 'No se encontraron rutas disponibles');
       }
-    } catch (error) {
+    } catch (error: any) {
       if (cancelRef.current) return;
+      if (error?.name === 'AbortError') return;
       console.error('Error calculando ruta:', error);
       Alert.alert('Error', 'No se pudo calcular la ruta');
-    }
-    if (!cancelRef.current) {
-      setLoading(false);
+    } finally {
+      if (routeRequestControllerRef.current === controller) {
+        routeRequestControllerRef.current = null;
+      }
+      if (!cancelRef.current) {
+        setLoading(false);
+      }
     }
   }, [origin, destination, reports]);
-
-  // Buscar ruta más accesible evitando obstáculos
-  const recalculateAvoidingObstacles = useCallback(async () => {
-    if (!origin || !destination || !analysisResult) return;
-
-    // Puntos críticos a evitar (obstáculos severos)
-    const criticalObstacles = analysisResult.nearbyObstacles
-      .filter(o => o.severity === 'high')
-      .map(o => ({ latitude: o.latitude, longitude: o.longitude }));
-
-    if (criticalObstacles.length === 0) {
-      Alert.alert('Información', 'No hay obstáculos críticos para evitar');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const originCoords = {
-        latitude: origin.latitude!,
-        longitude: origin.longitude!,
-      };
-      const destCoords = {
-        latitude: destination.latitude!,
-        longitude: destination.longitude!,
-      };
-
-      const alternativeData = await getRoutes(
-        originCoords,
-        destCoords,
-        GOOGLE_ROUTES_API_KEY,
-        criticalObstacles
-      );
-
-      if (alternativeData?.routes?.length) {
-        setRoutes(alternativeData.routes);
-        setSelectedRouteIndex(0);
-
-        // Re-analizar nueva ruta
-        const mainRoute = alternativeData.routes[0];
-        const steps: RouteStep[] = mainRoute.legs.flatMap((leg: any) => leg.steps);
-        const analysis = analyzeRoute(steps, reports);
-        setAnalysisResult(analysis);
-
-        Alert.alert('✅ Rutas recalculadas', 'Se encontraron rutas alternativas más accesibles');
-      } else {
-        Alert.alert('Error', 'No se pudieron recalcular las rutas');
-      }
-    } catch (error) {
-      console.error('Error recalculando:', error);
-      Alert.alert('Error', 'Error al recalcular la ruta');
-    }
-    setLoading(false);
-  }, [origin, destination, analysisResult]);
 
   const runAIAnalysis = useCallback(async () => {
     if (!routes.length || !routePolyline.length) return;
@@ -616,8 +659,17 @@ export default function RouteScreen() {
   // Obtener polyline de la ruta actual
   const getCurrentRoutePolyline = useCallback((): Coordinate[] => {
     if (routes.length === 0 || selectedRouteIndex >= routes.length) return [];
-    
-    const steps = routes[selectedRouteIndex].legs.flatMap((leg: any) => leg.steps);
+
+    const currentRoute = routes[selectedRouteIndex];
+    if (currentRoute.polyline?.encodedPolyline) {
+      try {
+        return decodePolyline(currentRoute.polyline.encodedPolyline);
+      } catch (error) {
+        console.log('Error decodificando polyline principal:', error);
+      }
+    }
+
+    const steps = currentRoute.legs.flatMap((leg: any) => leg.steps);
     const coordinates: Coordinate[] = [];
     
     for (const step of steps) {
@@ -653,213 +705,221 @@ export default function RouteScreen() {
       setRoutes([]);
       setAnalysisResult(null);
       setAiReport(null);
-      calculateOptimalRoute();
+      void calculateOptimalRoute();
     }
   }, [origin, destination, calculateOptimalRoute]);
 
   const handleCancel = useCallback(() => {
     cancelRef.current = true;
+    routeRequestControllerRef.current?.abort();
+    routeRequestControllerRef.current = null;
     setLoading(false);
-    setRoutes([]);
-    setAnalysisResult(null);
-    setAiReport(null);
+    setSearchModalVisible(false);
   }, []);
 
   const hasNearbyObstacles = analysisResult && analysisResult.nearbyObstacles.length > 0;
 
   return (
     <View style={styles.container}>
-      {loading ? (
-        /* PANTALLA DE CARGA — reemplaza el mapa completamente */
-        <View style={styles.loadingScreen}>
-          <ActivityIndicator size="large" color="#3b82f6" />
-          <Text style={styles.loadingScreenText}>Calculando ruta...</Text>
-          <TouchableOpacity style={styles.loadingCancelBtn} onPress={handleCancel}>
-            <Text style={styles.loadingCancelText}>Cancelar</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          {/* MAPA */}
-          <MapView
-            style={styles.map}
-            region={mapRegion}
-            onRegionChangeComplete={setMapRegion}
-          >
-            {origin && (
-              <Marker
-                coordinate={{ latitude: origin.latitude ?? 0, longitude: origin.longitude ?? 0 }}
-                title="Origen"
-                pinColor="#10b981"
-              />
-            )}
-            {destination && (
-              <Marker
-                coordinate={{ latitude: destination.latitude ?? 0, longitude: destination.longitude ?? 0 }}
-                title="Destino"
-                pinColor="#3b82f6"
-              />
-            )}
-            {routePolyline.length > 0 && (
-              <Polyline
-                coordinates={routePolyline}
-                strokeColor={analysisResult ? getRiskColor(analysisResult.riskLevel) : '#3b82f6'}
-                strokeWidth={4}
-              />
-            )}
-            {analysisResult?.nearbyObstacles.map((obstacle: any) => (
-              <Marker
-                key={obstacle.reportId}
-                coordinate={{ latitude: obstacle.latitude, longitude: obstacle.longitude }}
-                title={obstacle.type}
-                description={`Severidad: ${obstacle.severity}`}
-                pinColor="#ef4444"
-              />
-            ))}
-          </MapView>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        region={mapRegion}
+        onRegionChangeComplete={setMapRegion}
+        showsUserLocation
+      >
+        {userLocation && !origin && (
+          <Marker
+            coordinate={userLocation}
+            title="Mi ubicación"
+            pinColor="#22c55e"
+          />
+        )}
+        {origin && (
+          <Marker
+            coordinate={{ latitude: origin.latitude ?? 0, longitude: origin.longitude ?? 0 }}
+            title="Origen"
+            pinColor="#10b981"
+          />
+        )}
+        {destination && (
+          <Marker
+            coordinate={{ latitude: destination.latitude ?? 0, longitude: destination.longitude ?? 0 }}
+            title="Destino"
+            pinColor="#3b82f6"
+          />
+        )}
+        {routePolyline.length > 0 && (
+          <Polyline
+            coordinates={routePolyline}
+            strokeColor={analysisResult ? getRiskColor(analysisResult.riskLevel) : '#3b82f6'}
+            strokeWidth={4}
+          />
+        )}
+        {analysisResult?.nearbyObstacles.map((obstacle: any) => (
+          <Marker
+            key={obstacle.reportId}
+            coordinate={{ latitude: obstacle.latitude, longitude: obstacle.longitude }}
+            title={obstacle.type}
+            description={`Severidad: ${obstacle.severity}`}
+            pinColor="#ef4444"
+          />
+        ))}
+      </MapView>
 
-          {/* BOTÓN DE BÚSQUEDA */}
-          <View style={styles.controlPanel}>
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={() => setSearchModalVisible(true)}
-            >
-              <Ionicons name="search" size={20} color="#1a1a1a" />
-              <Text style={styles.searchButtonText}>
-                {origin && destination
-                  ? `${origin.mainText} → ${destination.mainText}`
-                  : 'Buscar ruta'}
-              </Text>
+      <View style={styles.controlPanel}>
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={() => setSearchModalVisible(true)}
+        >
+          <Ionicons name="search" size={20} color="#1a1a1a" />
+          <Text style={styles.searchButtonText}>
+            {origin && destination
+              ? `${origin.mainText} → ${destination.mainText}`
+              : 'Buscar ruta'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={loading}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={handleCancel}
+      >
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.loadingScreenText}>Calculando ruta...</Text>
+            <TouchableOpacity style={styles.loadingCancelBtn} onPress={handleCancel}>
+              <Text style={styles.loadingCancelText}>Cancelar</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
 
-          {/* PANEL DE INFORMACIÓN DE RUTA */}
-          {routeInfo && analysisResult && (
-            <View style={styles.routeInfoPanel}>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View
-                  style={[
-                    styles.accessibilityCard,
-                    { borderLeftColor: getRiskColor(analysisResult.riskLevel) },
-                  ]}
-                >
-                  <View style={styles.riskHeader}>
-                    <Text style={[styles.riskLevel, { color: getRiskColor(analysisResult.riskLevel) }]}>
-                      {getRiskLevelDescription(analysisResult.riskLevel)}
+      {routeInfo && analysisResult && (
+        <View style={styles.routeInfoPanel}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View
+              style={[
+                styles.accessibilityCard,
+                { borderLeftColor: getRiskColor(analysisResult.riskLevel) },
+              ]}
+            >
+              <View style={styles.riskHeader}>
+                <Text style={[styles.riskLevel, { color: getRiskColor(analysisResult.riskLevel) }]}>
+                  {getRiskLevelDescription(analysisResult.riskLevel)}
+                </Text>
+                <Text style={styles.riskScore}>
+                  Accesibilidad: {calculateAccessibilityScore(analysisResult)}%
+                </Text>
+              </View>
+
+              <View style={styles.routeDetails}>
+                <View style={styles.detailItem}>
+                  <Ionicons name="navigate" size={16} color="#666" />
+                  <Text style={styles.detailText}>{routeInfo.distance}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Ionicons name="time" size={16} color="#666" />
+                  <Text style={styles.detailText}>{routeInfo.duration}</Text>
+                </View>
+              </View>
+
+              <View style={styles.recommendations}>
+                {analysisResult.recommendations.map((rec: string, idx: number) => (
+                  <Text key={idx} style={styles.recommendationText}>{rec}</Text>
+                ))}
+              </View>
+
+              {hasNearbyObstacles ? (
+                !aiReport ? (
+                  <TouchableOpacity
+                    style={styles.aiButton}
+                    onPress={runAIAnalysis}
+                    disabled={aiLoading}
+                  >
+                    {aiLoading ? (
+                      <ActivityIndicator size="small" color="#8b5cf6" />
+                    ) : (
+                      <Ionicons name="sparkles" size={16} color="#8b5cf6" />
+                    )}
+                    <Text style={styles.aiButtonText}>
+                      {aiLoading ? 'Analizando con IA...' : 'Analizar con IA'}
                     </Text>
-                    <Text style={styles.riskScore}>
-                      Accesibilidad: {calculateAccessibilityScore(analysisResult)}%
-                    </Text>
-                  </View>
+                  </TouchableOpacity>
+                ) : null
+              ) : (
+                <View style={styles.noDataBanner}>
+                  <Ionicons name="information-circle" size={16} color="#6b7280" />
+                  <Text style={styles.noDataText}>
+                    No hay suficiente información. No se encontraron reportes cerca de esta ruta.
+                  </Text>
+                </View>
+              )}
+            </View>
 
-                  <View style={styles.routeDetails}>
-                    <View style={styles.detailItem}>
-                      <Ionicons name="navigate" size={16} color="#666" />
-                      <Text style={styles.detailText}>{routeInfo.distance}</Text>
-                    </View>
-                    <View style={styles.detailItem}>
-                      <Ionicons name="time" size={16} color="#666" />
-                      <Text style={styles.detailText}>{routeInfo.duration}</Text>
-                    </View>
+            {aiReport && (
+              <View style={styles.aiCard}>
+                <View style={styles.aiHeader}>
+                  <Ionicons name="sparkles" size={18} color="#8b5cf6" />
+                  <Text style={styles.aiTitle}>Análisis de Accesibilidad</Text>
+                  <View style={styles.aiScoreBadge}>
+                    <Text style={styles.aiScoreText}>{aiReport.scoreAccesibilidad}</Text>
+                    <Text style={styles.aiScoreTotal}>/100</Text>
                   </View>
-
-                  <View style={styles.recommendations}>
-                    {analysisResult.recommendations.map((rec: string, idx: number) => (
-                      <Text key={idx} style={styles.recommendationText}>{rec}</Text>
+                </View>
+                <Text style={styles.aiResumen}>{aiReport.resumen}</Text>
+                {aiReport.recomendaciones.length > 0 && (
+                  <View style={styles.aiRecomendaciones}>
+                    <Text style={styles.aiSectionTitle}>Recomendaciones:</Text>
+                    {aiReport.recomendaciones.map((rec: string, idx: number) => (
+                      <View key={idx} style={styles.aiRecomItem}>
+                        <Text style={styles.aiRecomBullet}>•</Text>
+                        <Text style={styles.aiRecomText}>{rec}</Text>
+                      </View>
                     ))}
                   </View>
+                )}
+                <TouchableOpacity style={styles.aiRetryButton} onPress={() => setAiReport(null)}>
+                  <Text style={styles.aiRetryText}>Repetir análisis</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-                  {/* IA: solo si hay obstáculos cerca */}
-                  {hasNearbyObstacles ? (
-                    !aiReport ? (
-                      <TouchableOpacity
-                        style={styles.aiButton}
-                        onPress={runAIAnalysis}
-                        disabled={aiLoading}
+            {hasNearbyObstacles && (
+              <View style={styles.obstaclesSection}>
+                <Text style={styles.sectionTitle}>
+                  ⚠️ Obstáculos detectados ({analysisResult.nearbyObstacles.length})
+                </Text>
+                {analysisResult.nearbyObstacles.map((obstacle: any, idx: number) => (
+                  <View key={idx} style={styles.obstacleItem}>
+                    <View
+                      style={[
+                        styles.obstacleType,
+                        { backgroundColor: obstacle.severity === 'high' ? '#fee2e2' : '#fef3c7' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.obstacleTypeText,
+                          { color: obstacle.severity === 'high' ? '#991b1b' : '#92400e' },
+                        ]}
                       >
-                        {aiLoading ? (
-                          <ActivityIndicator size="small" color="#8b5cf6" />
-                        ) : (
-                          <Ionicons name="sparkles" size={16} color="#8b5cf6" />
-                        )}
-                        <Text style={styles.aiButtonText}>
-                          {aiLoading ? 'Analizando con IA...' : 'Analizar con IA'}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : null
-                  ) : (
-                    <View style={styles.noDataBanner}>
-                      <Ionicons name="information-circle" size={16} color="#6b7280" />
-                      <Text style={styles.noDataText}>
-                        No hay suficiente información. No se encontraron reportes cerca de esta ruta.
+                        {obstacle.type}
                       </Text>
                     </View>
-                  )}
-                </View>
-
-                {/* REPORTE DE IA */}
-                {aiReport && (
-                  <View style={styles.aiCard}>
-                    <View style={styles.aiHeader}>
-                      <Ionicons name="sparkles" size={18} color="#8b5cf6" />
-                      <Text style={styles.aiTitle}>Análisis de Accesibilidad</Text>
-                      <View style={styles.aiScoreBadge}>
-                        <Text style={styles.aiScoreText}>{aiReport.scoreAccesibilidad}</Text>
-                        <Text style={styles.aiScoreTotal}>/100</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.aiResumen}>{aiReport.resumen}</Text>
-                    {aiReport.recomendaciones.length > 0 && (
-                      <View style={styles.aiRecomendaciones}>
-                        <Text style={styles.aiSectionTitle}>Recomendaciones:</Text>
-                        {aiReport.recomendaciones.map((rec: string, idx: number) => (
-                          <View key={idx} style={styles.aiRecomItem}>
-                            <Text style={styles.aiRecomBullet}>•</Text>
-                            <Text style={styles.aiRecomText}>{rec}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                    <TouchableOpacity style={styles.aiRetryButton} onPress={() => setAiReport(null)}>
-                      <Text style={styles.aiRetryText}>Repetir análisis</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* OBSTÁCULOS DETECTADOS */}
-                {hasNearbyObstacles && (
-                  <View style={styles.obstaclesSection}>
-                    <Text style={styles.sectionTitle}>
-                      ⚠️ Obstáculos detectados ({analysisResult.nearbyObstacles.length})
+                    <Text style={styles.obstacleDistance}>
+                      A {obstacle.distance}m de la ruta
                     </Text>
-                    {analysisResult.nearbyObstacles.map((obstacle: any, idx: number) => (
-                      <View key={idx} style={styles.obstacleItem}>
-                        <View
-                          style={[
-                            styles.obstacleType,
-                            { backgroundColor: obstacle.severity === 'high' ? '#fee2e2' : '#fef3c7' },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.obstacleTypeText,
-                              { color: obstacle.severity === 'high' ? '#991b1b' : '#92400e' },
-                            ]}
-                          >
-                            {obstacle.type}
-                          </Text>
-                        </View>
-                        <Text style={styles.obstacleDistance}>
-                          A {obstacle.distance}m de la ruta
-                        </Text>
-                      </View>
-                    ))}
                   </View>
-                )}
-              </ScrollView>
-            </View>
-          )}
-        </>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
       )}
 
       {/* MODAL DE BÚSQUEDA */}
@@ -884,16 +944,29 @@ export default function RouteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   map: { flex: 1 },
-  loadingScreen: {
-    flex: 1,
-    backgroundColor: '#fff',
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    zIndex: 30,
+  },
+  loadingCard: {
+    minWidth: 220,
+    alignItems: 'center',
     gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
   },
   loadingScreenText: { fontSize: 16, fontWeight: '500', color: '#374151' },
   loadingCancelBtn: {
-    marginTop: 20,
     paddingVertical: 8,
     paddingHorizontal: 24,
     backgroundColor: '#ef4444',
@@ -1041,6 +1114,17 @@ const modalStyles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
   fieldContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#f9fafb', borderRadius: 8, gap: 8 },
   input: { flex: 1, fontSize: 16, paddingVertical: 8, color: '#1a1a1a' },
+  currentLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+  },
+  currentLocationText: { fontSize: 13, fontWeight: '500', color: '#1d4ed8' },
   predictionsList: { maxHeight: 200, marginTop: 8, backgroundColor: '#f9fafb', borderRadius: 8, overflow: 'hidden' },
   predictionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
   predictionMain: { fontSize: 14, fontWeight: '500', color: '#1a1a1a' },
