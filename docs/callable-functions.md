@@ -137,11 +137,14 @@ const result = await rejectReport({reportId: "-OABC123XYZ"});
 
 ### `archiveReport`
 
-Archiva un reporte. **Requiere rol `moderator` o superior.**
+Archiva un reporte. **Requiere rol `moderator` o superior.** Acepta una razón de archivado para distinguir entre reparado, duplicado o inválido.
 
 ```ts
 const archiveReport = httpsCallable(functions, "archiveReport");
-const result = await archiveReport({reportId: "-OABC123XYZ"});
+const result = await archiveReport({
+  reportId: "-OABC123XYZ",
+  archiveReason: "fixed",
+});
 ```
 
 **Parámetros:**
@@ -149,6 +152,7 @@ const result = await archiveReport({reportId: "-OABC123XYZ"});
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `reportId` | `string` | Sí | ID del reporte a archivar |
+| `archiveReason` | `string` | No | Motivo: `fixed` (reparado), `duplicate` (duplicado), `invalid` (inválido), `other` (otro). Default: `other` |
 
 **Errores:** `permission-denied`
 
@@ -297,6 +301,119 @@ const result = await deleteComment({commentId: "-ODEF456ABC"});
 
 ---
 
+## Ruteo y mapa
+
+### `getReportsInArea`
+
+Obtiene reportes activos dentro de un bounding box geográfico. Diseñado para el mapa móvil: solo carga los reportes visibles en pantalla. Excluye automáticamente los archivados.
+
+```ts
+const getReportsInArea = httpsCallable(functions, "getReportsInArea");
+const result = await getReportsInArea({
+  north: 32.5350,
+  south: 32.5100,
+  east: -117.0100,
+  west: -117.0450,
+  // status: "pending"  // opcional: filtrar por estado
+});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `north` | `number` | Sí | Latitud norte (máxima) |
+| `south` | `number` | Sí | Latitud sur (mínima) |
+| `east` | `number` | Sí | Longitud este (máxima) |
+| `west` | `number` | Sí | Longitud oeste (mínima) |
+| `status` | `string` | No | Filtrar por estado (`pending`, `verified`, etc.) |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "reports": [
+    {
+      "id": "-OABC123XYZ",
+      "userId": "abc123",
+      "type": "blocked_ramp",
+      "severity": 8,
+      "latitude": 32.5149,
+      "longitude": -117.0382,
+      "status": "pending"
+    }
+  ]
+}
+```
+
+---
+
+### `generateAccessibleRoute`
+
+**Función principal del proyecto.** Toma origen y destino, obtiene el perfil de movilidad del usuario desde Firestore, consulta todas las barreras activas en RTDB, calcula la ruta peatonal vía OSRM y determina qué barreras afectan al usuario según su perfil de movilidad.
+
+El `accessibilityScore` es de 1 a 10: 10 significa ruta completamente libre de barreras, valores bajos indican muchas barreras críticas en el camino.
+
+```ts
+const generateAccessibleRoute = httpsCallable(functions, "generateAccessibleRoute");
+
+const result = await generateAccessibleRoute({
+  originLat: 32.5149,
+  originLng: -117.0382,
+  destinationLat: 32.5320,
+  destinationLng: -117.0181,
+  // mobilityProfileOverride: "wheelchair_manual"  // opcional
+});
+```
+
+**Parámetros:**
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `originLat` | `number` | Sí | Latitud de origen |
+| `originLng` | `number` | Sí | Longitud de origen |
+| `destinationLat` | `number` | Sí | Latitud de destino |
+| `destinationLng` | `number` | Sí | Longitud de destino |
+| `mobilityProfileOverride` | `string` | No | Perfil de movilidad forzado (sin este, usa el del usuario autenticado) |
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "route": {
+    "polyline": "}~jaH_pwqU...",
+    "distanceMeters": 1240,
+    "durationSeconds": 900,
+    "warningsOnRoute": [
+      {
+        "reportId": "-OABC",
+        "type": "broken_sidewalk",
+        "severity": 7,
+        "description": "Banqueta con grietas profundas",
+        "lat": 32.516,
+        "lng": -117.025
+      }
+    ],
+    "barriersInCorridor": 5,
+    "barriersAvoided": 3,
+    "accessibilityScore": 7.5,
+    "maxWalkingExceeded": false
+  }
+}
+```
+
+**Lógica del penalty por perfil de movilidad:**
+
+| Perfil | Barreras que duplican el penalty |
+|--------|----------------------------------|
+| `wheelchair_electric` / `wheelchair_manual` | `blocked_ramp`, `no_sidewalk`, `broken_sidewalk` |
+| `walker` / `cane` | `broken_sidewalk`, `obstacle` |
+| `ambulatory_limited` | `no_sidewalk` |
+
+Cuando `maxWalkingMeters` está configurado y la distancia de la ruta lo excede, `maxWalkingExceeded` se marca como `true`.
+
+---
+
 ## Gemini AI (Visión)
 
 Las funciones de Gemini analizan **fotos** (no texto). Reciben una `photoUrl` de Firebase Storage, descargan la imagen y la envían a Gemini 2.0 Flash Vision.
@@ -426,7 +543,7 @@ await createReport({
 
 ### `generateHeatmap`
 
-Genera un mapa de calor agrupando reportes por zona de Tijuana.
+Genera un mapa de calor por coordenadas. Agrupa reportes activos por proximidad geográfica (radio 250m) y pondera cada punto por cantidad de reportes y severidad promedio. Ideal para renderizar en Google Maps o Leaflet.
 
 ```ts
 const result = await httpsCallable(functions, "generateHeatmap")();
@@ -436,12 +553,9 @@ const result = await httpsCallable(functions, "generateHeatmap")();
 ```json
 {
   "heatmap": [
-    {"zone": "Zona Río", "count": 87},
-    {"zone": "Centro", "count": 45},
-    {"zone": "Otay", "count": 32},
-    {"zone": "La Mesa", "count": 28},
-    {"zone": "Playas de Tijuana", "count": 15},
-    {"zone": "Otra zona", "count": 12}
+    {"lat": 32.5149, "lng": -117.0382, "weight": 5.6},
+    {"lat": 32.5250, "lng": -117.0150, "weight": 3.2},
+    {"lat": 32.5000, "lng": -116.9200, "weight": 2.8}
   ]
 }
 ```
