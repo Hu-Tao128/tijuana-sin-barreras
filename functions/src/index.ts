@@ -1,13 +1,6 @@
 import {setGlobalOptions} from "firebase-functions/v2";
-import {getApps, initializeApp} from "firebase-admin/app";
 
 setGlobalOptions({maxInstances: 10});
-
-if (!getApps().length) {
-  initializeApp({
-    databaseURL: "https://tijuana-sin-barreras-default-rtdb.firebaseio.com",
-  });
-}
 
 export {createReport} from "./reports/createReport";
 export {confirmReport} from "./reports/confirmReport";
